@@ -1,0 +1,42 @@
+# scSAGA config for integrating 4 datasets: 3k-RNA (anchor), 3k-ATAC, 6k-RNA, 6k-ATAC.
+# Anchor = 3k RNA. All datasets have 2711 cells. Writes to results/integration.
+anchor: "rna3k"
+
+datasets:
+  - name: "rna3k"
+    modality: "rna"
+    counts: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_rna/counts.mtx"
+    barcodes: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_rna/barcodes.txt"
+    features: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_rna/features.txt"
+    pca: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_rna/pca_50.txt"
+
+  - name: "atac3k"
+    modality: "atac"
+    counts: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_atac/counts.mtx"
+    barcodes: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_atac/barcodes.txt"
+    features: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_atac/features.txt"
+    pca: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/3k_atac/pca_50.txt"
+
+  - name: "rna6k"
+    modality: "rna"
+    counts: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_rna/counts.mtx"
+    barcodes: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_rna/barcodes.txt"
+    features: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_rna/features.txt"
+    pca: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_rna/pca_50.txt"
+
+  - name: "atac6k"
+    modality: "atac"
+    counts: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_atac/counts.mtx"
+    barcodes: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_atac/barcodes.txt"
+    features: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_atac/features.txt"
+    pca: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/data/6k_atac/pca_50.txt"
+
+output_dir: "/Volumes/samsung_ssd/tmp/pbsc4k-multiome-experiment/results/integration"
+
+# --- Hyperparameters (identical to original 3k run) ---
+s_shared_cells: 2711
+M_samples: 2000
+alpha: 0.75
+S_iterations: 25
+gw_epsilon: 1e-5
+gw_reg: 0.001

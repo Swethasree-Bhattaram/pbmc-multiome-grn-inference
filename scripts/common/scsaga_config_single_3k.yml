@@ -1,0 +1,28 @@
+# Config for scSAGA integration. Reuses scsaga_input/ files; writes results to
+# results/scsaga_output.
+anchor: "rna"
+
+datasets:
+  - name: "rna"
+    modality: "rna"
+    counts: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/rna_counts.mtx"
+    barcodes: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/rna_barcodes.txt"
+    features: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/rna_features.txt"
+    pca: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/rna_pca_50.txt"
+
+  - name: "atac"
+    modality: "atac"
+    counts: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/atac_counts.mtx"
+    barcodes: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/atac_barcodes.txt"
+    features: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/atac_features.txt"
+    pca: "/Users/sbhattaram/pbmc3k_analysis/scsaga_input/atac_pca_50.txt"
+
+output_dir: "/Users/sbhattaram/pbmc3k_analysis/results/scsaga_output"
+
+# --- Hyperparameters (identical to original scsaga_config.yml) ---
+s_shared_cells: 2711
+M_samples: 2000
+alpha: 0.75
+S_iterations: 25
+gw_epsilon: 1e-5
+gw_reg: 0.001

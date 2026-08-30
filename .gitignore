@@ -1,0 +1,14 @@
+# --- Raw input data & large regenerable matrices (not committed) ---
+raw/
+*.npy
+*.tsv
+
+# --- Dask ---
+dask-worker-space/
+
+# --- OS / Python junk ---
+.DS_Store
+*.log
+*.pyc
+__pycache__/
+.venv*/

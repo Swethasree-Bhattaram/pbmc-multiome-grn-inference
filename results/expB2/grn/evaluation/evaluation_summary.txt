@@ -1,0 +1,32 @@
+ARBORETO GRNBOOST2 NETWORK EVALUATION SUMMARY (exp expB2)
+======================================================================
+Inferred edges: 1932030, regulators: 2507, targets: 4069
+
+========== EVALUATION vs PBMC-TRRUST ==========
+Total edges: 9720
+Deduplicated edges: 8751
+
+       Top-K     Prec@K   Recall@K
+         100     0.0000     0.0000
+         500     0.0060     0.0003
+        1000     0.0070     0.0008
+        5000     0.0036     0.0021
+       10000     0.0029     0.0033
+     1932030     0.0009     0.1967
+
+Edges recovered by GRN: 1721 (19.7%)
+----------------------------------------------------------------------
+========== EVALUATION vs PBMC-Blood ==========
+Total edges: 98338
+Deduplicated edges: 96846
+
+       Top-K     Prec@K   Recall@K
+         100     0.0000     0.0000
+         500     0.0080     0.0000
+        1000     0.0090     0.0001
+        5000     0.0080     0.0004
+       10000     0.0059     0.0006
+     1932030     0.0024     0.0487
+
+Edges recovered by GRN: 4721 (4.9%)
+----------------------------------------------------------------------
