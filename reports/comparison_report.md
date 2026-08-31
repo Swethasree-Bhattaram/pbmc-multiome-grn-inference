@@ -1,22 +1,22 @@
 # Multi-Dataset scSAGA Integration & GRN: Experiment Comparison
 
-**Generated:** 2026-08-30 08:21
+**Generated:** 2026-08-31 06:54
 
 ## Design
 
 Four datasets are jointly integrated with scSAGA (3k-RNA anchor, 2,711 cells each):
-- **rna3k** (real expression) · **atac3k** (peaks) · **rna6k** (subsampled 10k RNA) · **atac6k** (subsampled 10k peaks)
-- Joint embedding **H** = 10,844 x 30 (each block 2,711 x 30); global alignment score 0.221.
+- **rna3k** (real expression) · **atac3k** (peaks) · **rna_sub3k** (subsampled 10k RNA) · **atac_sub3k** (subsampled 10k peaks)
+- Joint embedding **H** = 10,844 x 30 (each block 2,711 x 30); global alignment score 0.8201.
 
 The only variable across experiments is **which RNA reference** is used by reverse-imputeKNN to
 impute expression for the 5,422 ATAC cells. The all-cells matrix (10,844 x 36,601) always holds the
-same real RNA cells (rna3k then rna6k) in rows 0..5421; only the imputed ATAC block (rows 5422..10843) changes.
+same real RNA cells (rna3k then rna_sub3k) in rows 0..5421; only the imputed ATAC block (rows 5422..10843) changes.
 
 | Experiment | Reference for imputeKNN |
 |---|---|
-| **A** | SCEMENT-integrated 3k+RNA & 6k+RNA → one 5,422-cell reference |
+| **A** | SCEMENT-integrated 3k+RNA & subsampled_3k+RNA → one 5,422-cell reference |
 | **B1** | 3k RNA only (2,711 cells) |
-| **B2** | 6k RNA only (2,711 cells) |
+| **B2** | subsampled_3k RNA only (2,711 cells) |
 
 Each produces an Arboreto GRNBoost2 network evaluated against PBMC-TRRUST and PBMC-Blood ground truth.
 
@@ -28,13 +28,22 @@ Each produces an Arboreto GRNBoost2 network evaluated against PBMC-TRRUST and PB
 | expB1 | 10844 x 36601 | 10844 | — | 1880170 |
 | expB2 | 10844 x 36601 | 10844 | — | 1932030 |
 
+**Why the inferred-edge counts differ across experiments:** GRNBoost2 infers an edge for every
+(regulator, target) pair whose importance exceeds a data-dependent threshold. Because the imputed
+ATAC block differs between experiments (different RNA reference), the expression matrix fed to
+GRNBoost2 differs, so the number of edges that clear the threshold varies slightly. The target-gene
+set is also marginally different (e.g. expB1 selected 4,390 targets vs 4,389 for the others due to a
+tie at the top-2000 HVG cutoff). These are expected, minor run-to-run differences — not an error.
+
 ## Edges recovered by GRN (fraction of deduplicated ground truth)
 
 | Experiment | PBMC-TRRUST | PBMC-Blood |
 |---|---|---|
-| expA | 1690 | 4891 |
-| expB1 | 1739 | 4555 |
-| expB2 | 1721 | 4721 |
+| expA | 1690/8751 | 4891/96846 |
+| expB1 | 1739/8751 | 4555/96846 |
+| expB2 | 1721/8751 | 4721/96846 |
+
+*Format: recovered edges / deduplicated ground-truth edges (e.g. 1690/8751 = 19.3% of PBMC-TRRUST).*
 
 ## Precision@K (K=100)
 
@@ -72,7 +81,7 @@ Each produces an Arboreto GRNBoost2 network evaluated against PBMC-TRRUST and PB
 
 ## Experiment A: Reverse-imputeKNN from a SCEMENT-integrated combined RNA reference
 
-**Reference:** SCEMENT-integrated 3k+6k RNA (5,422 cells)
+**Reference:** SCEMENT-integrated 3k+subsampled_3k RNA (5,422 cells)
 
 ### Evaluation vs ground truth (deduplicated)
 
@@ -110,9 +119,9 @@ Each produces an Arboreto GRNBoost2 network evaluated against PBMC-TRRUST and PB
 
 ---
 
-## Experiment B2: Reverse-imputeKNN from the single 6k RNA reference
+## Experiment B2: Reverse-imputeKNN from the single subsampled_3k RNA reference
 
-**Reference:** 6k RNA only (2,711 cells)
+**Reference:** subsampled_3k RNA only (2,711 cells)
 
 ### Evaluation vs ground truth (deduplicated)
 
