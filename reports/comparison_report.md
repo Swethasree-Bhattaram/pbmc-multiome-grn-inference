@@ -1,6 +1,6 @@
 # Multi-Dataset scSAGA Integration & GRN: Experiment Comparison
 
-**Generated:** 2026-08-31 06:54
+**Generated:** 2026-08-31 06:58
 
 ## Design
 
@@ -24,9 +24,9 @@ Each produces an Arboreto GRNBoost2 network evaluated against PBMC-TRRUST and PB
 
 | Experiment | All-cells matrix | Cells | Target genes | Inferred edges |
 |---|---|---|---|---|
-| expA | 10844 x 36601 | 10844 | — | 1982020 |
-| expB1 | 10844 x 36601 | 10844 | — | 1880170 |
-| expB2 | 10844 x 36601 | 10844 | — | 1932030 |
+| expA | 10844 x 36601 | 10844 | 4389 | 1982020 |
+| expB1 | 10844 x 36601 | 10844 | 4390 | 1880170 |
+| expB2 | 10844 x 36601 | 10844 | 4389 | 1932030 |
 
 **Why the inferred-edge counts differ across experiments:** GRNBoost2 infers an edge for every
 (regulator, target) pair whose importance exceeds a data-dependent threshold. Because the imputed
