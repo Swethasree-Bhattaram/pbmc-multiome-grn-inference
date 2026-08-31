@@ -1,11 +1,9 @@
 # Multi-Dataset scSAGA Integration & GRN: Experiment Comparison
 
-**Generated:** 2026-08-31 06:58
-
 ## Design
 
 Four datasets are jointly integrated with scSAGA (3k-RNA anchor, 2,711 cells each):
-- **rna3k** (real expression) · **atac3k** (peaks) · **rna_sub3k** (subsampled 10k RNA) · **atac_sub3k** (subsampled 10k peaks)
+- **rna3k** · **atac3k** · **rna_sub3k** (subsampled from 10k) · **atac_sub3k** (subsampled from 10k)
 - Joint embedding **H** = 10,844 x 30 (each block 2,711 x 30); global alignment score 0.8201.
 
 The only variable across experiments is **which RNA reference** is used by reverse-imputeKNN to

@@ -1,6 +1,5 @@
 # Experiment B1 — reverse-imputeKNN from the single 3k RNA reference
 
-**Date:** 2026-08-31
 **Integration:** scSAGA — 4 datasets jointly embedded (3k-RNA anchor, 3k-ATAC, subsampled_3k-RNA, subsampled_3k-ATAC)
 **Reverse-imputeKNN reference:** 3k RNA only (2,711 cells)
 **GRN:** Arboreto GRNBoost2 (TRRUST regulators)
@@ -10,7 +9,7 @@
 
 ## 1. Pipeline
 
-1. **Datasets:** 4 single-modality datasets (2,711 cells each): rna3k (real), atac3k (peaks), rna_sub3k (subsampled 10k RNA, real), atac_sub3k (subsampled 10k peaks). The subsampled_3k RNA/ATAC are the SAME 2,711 physical cells (paired multiome).
+1. **Datasets:** 4 single-modality datasets (2,711 cells each): rna3k, atac3k, rna_sub3k (subsampled from 10k), atac_sub3k (subsampled from 10k). The subsampled_3k RNA/ATAC are the SAME 2,711 physical cells (paired multiome).
 2. **Integration:** scSAGA into a shared joint embedding **H** (10,844 x 30).
 3. **Reverse-imputeKNN**: Only the original 3k RNA dataset (2,711 cells) is used as reference; both ATAC populations (3k + subsampled_3k) are imputed from it.
 4. **All-cells matrix:** 10,844 x 36,601 (rows: rna3k, rna_sub3k, atac3k-imputed, atac_sub3k-imputed).
