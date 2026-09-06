@@ -1,0 +1,33 @@
+anchor: rna3k
+datasets:
+- name: rna3k
+  modality: rna
+  counts: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_rna/counts.mtx
+  barcodes: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_rna/barcodes.txt
+  features: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_rna/features.txt
+  pca: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_rna/pca_50.txt
+- name: atac3k
+  modality: atac
+  counts: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_atac/counts.mtx
+  barcodes: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_atac/barcodes.txt
+  features: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_atac/features.txt
+  pca: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/3k_atac/pca_50.txt
+- name: rna10k
+  modality: rna
+  counts: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_rna/counts.mtx
+  barcodes: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_rna/barcodes.txt
+  features: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_rna/features.txt
+  pca: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_rna/pca_50.txt
+- name: atac10k
+  modality: atac
+  counts: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_atac/counts.mtx
+  barcodes: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_atac/barcodes.txt
+  features: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_atac/features.txt
+  pca: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/data/10k_atac/pca_50.txt
+output_dir: /Volumes/samsung_ssd/tmp/pbmc-full10k-grn/results/integration_10k
+s_shared_cells: 2711
+M_samples: 2000
+alpha: 0.75
+S_iterations: 25
+gw_epsilon: 1.0e-05
+gw_reg: 0.001

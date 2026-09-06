@@ -5,7 +5,7 @@ End-to-end gene regulatory network (GRN) inference on 10x Genomics PBMC multiome
 imputation, and **Arboreto GRNBoost2**, evaluated against PBMC ground-truth
 regulatory edges.
 
-This repository covers two workflows:
+This repository covers three workflows:
 
 1. **Single-dataset (3k)** — the original pbmc_3k granulocyte-sorted multiome
    (2,711 shared cells): scSAGA integrates RNA+ATAC, reverse-imputeKNN fills ATAC
@@ -19,10 +19,14 @@ This repository covers two workflows:
      (3k + 6k RNA, 5,422 cells).
    - **Experiment B1**: the single 3k RNA reference.
    - **Experiment B2**: the single 6k RNA reference.
+3. **Multi-dataset full-10k** — the same four-dataset integration and three
+   reference strategies, but using the **entire 10k multiome (11,898 cells)**
+   instead of a 2,711-cell subsample. All-cells matrix is 29,218 x 36,601.
+   See `reports/full-10k/` and the `*_10k` scripts in `scripts/multi-dataset-4x/`.
 
 The only variable across Experiments A/B1/B2 is which RNA reference feeds
 reverse-imputeKNN (the all-cells matrix is always the same real RNA cells plus
-the 5,422 imputed ATAC cells), so the experiments isolate the effect of the
+the imputed ATAC cells), so the experiments isolate the effect of the
 imputation reference strategy.
 
 ## Pipeline
@@ -40,7 +44,8 @@ preprocess → scSAGA integration (joint embedding H) → reverse-imputeKNN
 │   ├── single-dataset-3k/    # original 3k downstream (reverse-impute, arboreto, eval)
 │   └── multi-dataset-4x/     # 4-dataset experiments A/B1/B2 (+ vendored SCEMENT)
 ├── reports/                  # per-experiment + consolidated comparison reports
-│   └── single-dataset-3k/    # original 3k workflow reports (REPORT.md, REPORT_DETAILED.md)
+│   ├── single-dataset-3k/    # original 3k workflow reports (REPORT.md, REPORT_DETAILED.md)
+│   └── full-10k/             # full-10k (11,898-cell) multi-dataset reports + figures
 ├── data/
 │   ├── trrust_tf.txt         # TRRUST transcription factors (regulators)
 │   └── ground_truth/         # PBMC-TRRUST.csv, PBMC-Blood.csv
@@ -59,17 +64,23 @@ Raw 10x `.h5` files and large regenerable matrices are **not** committed
   (36,601 RNA + 98,319 peaks) × 2,711 cells, shared nuclei.
 - **10k → 6k**: the same protocol at 10k nominal (11,898 cells); we deterministically
   subsample the **same 2,711 cells** in both modalities to form the "6k" datasets.
+- **10k (full)**: the same 10k multiome using **all 11,898 cells** (no subsampling),
+  used in the full-10k workflow.
 
 ## Results summary
 
-See `reports/00_COMPARISON.md` for the consolidated table and
-`reports/exp{EXP}_REPORT.md` for per-experiment detail.
+See `reports/00_COMPARISON.md` for the consolidated table,
+`reports/exp{EXP}_REPORT.md` for per-experiment detail, and
+`reports/full-10k/` for the full-10k (11,898-cell) runs.
 
 | Experiment | Imputation reference | GRN evaluation |
 |---|---|---|
 | A  | SCEMENT-combined 3k+6k RNA (5,422) | PBMC-TRRUST / PBMC-Blood |
 | B1 | 3k RNA only (2,711)                 | PBMC-TRRUST / PBMC-Blood |
 | B2 | 6k RNA only (2,711)                 | PBMC-TRRUST / PBMC-Blood |
+
+Full-10k variants (A: SCEMENT 3k+10k RNA, 14,609 cells; B1: 3k RNA; B2: 10k RNA)
+are in `reports/full-10k/`.
 
 ## Reproducing
 
