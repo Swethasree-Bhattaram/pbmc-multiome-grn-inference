@@ -5,7 +5,7 @@ End-to-end gene regulatory network (GRN) inference on 10x Genomics PBMC multiome
 imputation, and **Arboreto GRNBoost2**, evaluated against PBMC ground-truth
 regulatory edges.
 
-This repository covers three workflows:
+This repository covers four workflows:
 
 1. **Single-dataset (3k)** — the original pbmc_3k granulocyte-sorted multiome
    (2,711 shared cells): scSAGA integrates RNA+ATAC, reverse-imputeKNN fills ATAC
@@ -23,6 +23,10 @@ This repository covers three workflows:
    reference strategies, but using the **entire 10k multiome (11,898 cells)**
    instead of a 2,711-cell subsample. All-cells matrix is 29,218 x 36,601.
    See `reports/full-10k/` and the `*_10k` scripts in `scripts/multi-dataset-4x/`.
+4. **RNA-only baseline (3k + 4k)** — a control with **no integration and no
+   imputation**: the 3k multiome RNA and the 10x PBMC 4k RNA matrices are
+   restricted to their common gene symbols and stacked, then handed straight to
+   GRNBoost2. See `scripts/rna-baseline/` and `reports/rna-baseline/`.
 
 The only variable across Experiments A/B1/B2 is which RNA reference feeds
 reverse-imputeKNN (the all-cells matrix is always the same real RNA cells plus
@@ -42,7 +46,8 @@ preprocess → scSAGA integration (joint embedding H) → reverse-imputeKNN
 ├── scripts/
 │   ├── common/               # shared steps (h5 split, scSAGA runner, single-3k)
 │   ├── single-dataset-3k/    # original 3k downstream (reverse-impute, arboreto, eval)
-│   └── multi-dataset-4x/     # 4-dataset experiments A/B1/B2 (+ vendored SCEMENT)
+│   ├── multi-dataset-4x/     # 4-dataset experiments A/B1/B2 (+ vendored SCEMENT)
+│   └── rna-baseline/         # RNA-only baseline (3k RNA + 4k RNA stacked -> GRNBoost2)
 ├── reports/                  # per-experiment + consolidated comparison reports
 │   ├── single-dataset-3k/    # original 3k workflow reports (REPORT.md, REPORT_DETAILED.md)
 │   └── full-10k/             # full-10k (11,898-cell) multi-dataset reports + figures
@@ -78,6 +83,9 @@ See `reports/00_COMPARISON.md` for the consolidated table,
 | A  | SCEMENT-combined 3k+6k RNA (5,422) | PBMC-TRRUST / PBMC-Blood |
 | B1 | 3k RNA only (2,711)                 | PBMC-TRRUST / PBMC-Blood |
 | B2 | 6k RNA only (2,711)                 | PBMC-TRRUST / PBMC-Blood |
+
+RNA-only baseline (3k RNA + 4k RNA stacked, no integration/imputation) is in
+`reports/rna-baseline/`.
 
 Full-10k variants (A: SCEMENT 3k+10k RNA, 14,609 cells; B1: 3k RNA; B2: 10k RNA)
 are in `reports/full-10k/`.
