@@ -81,3 +81,58 @@ at a TF). The recovered-edge and precision gains should therefore be interpreted
 using the evaluation key itself.
 
 ---
+
+
+## Experiment A: Reverse-imputeKNN from SCEMENT-integrated 3k+10k RNA
+
+**Reference:** SCEMENT-integrated 3k+10k RNA (14,609 cells)
+
+**PBMC-TRRUST:** total=9720, dedup=8751, recovered=3660 (41.8%)
+**PBMC-Blood:** total=98338, dedup=96846, recovered=5269 (5.4%)
+
+| Top-K | TRRUST Prec/Rec | Blood Prec/Rec |
+|---|---|---|
+| 100 | 0.05/0.0006 | 0.02/0.0 |
+| 500 | 0.038/0.0022 | 0.022/0.0001 |
+| 1,000 | 0.024/0.0027 | 0.02/0.0002 |
+| 5,000 | 0.0162/0.0093 | 0.0144/0.0007 |
+| 10,000 | 0.0136/0.0155 | 0.0145/0.0015 |
+| 829,982 | 0.0044/0.4182 | 0.0063/0.0544 |
+
+---
+
+## Experiment B1: Reverse-imputeKNN from 3k RNA only
+
+**Reference:** 3k RNA only (2,711 cells)
+
+**PBMC-TRRUST:** total=9720, dedup=8751, recovered=3454 (39.5%)
+**PBMC-Blood:** total=98338, dedup=96846, recovered=5132 (5.3%)
+
+| Top-K | TRRUST Prec/Rec | Blood Prec/Rec |
+|---|---|---|
+| 100 | 0.05/0.0006 | 0.03/0.0 |
+| 500 | 0.04/0.0023 | 0.03/0.0002 |
+| 1,000 | 0.026/0.003 | 0.023/0.0002 |
+| 5,000 | 0.018/0.0103 | 0.0164/0.0008 |
+| 10,000 | 0.0152/0.0174 | 0.0161/0.0017 |
+| 779,701 | 0.0044/0.3947 | 0.0066/0.053 |
+
+---
+
+## Experiment B2: Reverse-imputeKNN from 10k RNA only
+
+**Reference:** 10k RNA only (11,898 cells)
+
+**PBMC-TRRUST:** total=9720, dedup=8751, recovered=3664 (41.9%)
+**PBMC-Blood:** total=98338, dedup=96846, recovered=5362 (5.5%)
+
+| Top-K | TRRUST Prec/Rec | Blood Prec/Rec |
+|---|---|---|
+| 100 | 0.04/0.0005 | 0.02/0.0 |
+| 500 | 0.038/0.0022 | 0.026/0.0001 |
+| 1,000 | 0.027/0.0031 | 0.024/0.0002 |
+| 5,000 | 0.016/0.0091 | 0.0164/0.0008 |
+| 10,000 | 0.0134/0.0153 | 0.0153/0.0016 |
+| 832,664 | 0.0044/0.4187 | 0.0064/0.0554 |
+
+---
