@@ -27,6 +27,12 @@ This repository covers four workflows:
    imputation**: the 3k multiome RNA and the 10x PBMC 4k RNA matrices are
    restricted to their common gene symbols and stacked, then handed straight to
    GRNBoost2. See `scripts/rna-baseline/` and `reports/rna-baseline/`.
+5. **Unpaired full-10k (external ATAC)** — the same pipeline run as an **unpaired**
+   experiment: the 10k multiome RNA (11,898 cells) against a *separate* 10x ATAC
+   dataset (10k Human PBMCs ATAC v1.1 "cells by peaks", 8,161 cells). The two
+   modalities come from different nuclei (`hg19` vs `GRCh38` peaks), so the
+   alignment is partial by construction. All-cells matrix 20,059 x 36,601.
+   See `scripts/unpaired-10k/` and `reports/unpaired-10k/`.
 
 The only variable across Experiments A/B1/B2 is which RNA reference feeds
 reverse-imputeKNN (the all-cells matrix is always the same real RNA cells plus
@@ -47,6 +53,7 @@ preprocess → scSAGA integration (joint embedding H) → reverse-imputeKNN
 │   ├── common/               # shared steps (h5 split, scSAGA runner, single-3k)
 │   ├── single-dataset-3k/    # original 3k downstream (reverse-impute, arboreto, eval)
 │   ├── multi-dataset-4x/     # 4-dataset experiments A/B1/B2 (+ vendored SCEMENT)
+│   ├── unpaired-10k/         # unpaired: multiome 10k RNA x external 10x ATAC v1.1
 │   └── rna-baseline/         # RNA-only baseline (3k RNA + 4k RNA stacked -> GRNBoost2)
 ├── reports/                  # per-experiment + consolidated comparison reports
 │   ├── single-dataset-3k/    # original 3k workflow reports (REPORT.md, REPORT_DETAILED.md)
@@ -89,6 +96,9 @@ RNA-only baseline (3k RNA + 4k RNA stacked, no integration/imputation) is in
 
 Full-10k variants (A: SCEMENT 3k+10k RNA, 14,609 cells; B1: 3k RNA; B2: 10k RNA)
 are in `reports/full-10k/`.
+
+The unpaired full-10k run (multiome 10k RNA against the external 10x 10k PBMC ATAC
+v1.1 dataset — different cells, hg19 peaks) is in `reports/unpaired-10k/`.
 
 ## Reproducing
 
