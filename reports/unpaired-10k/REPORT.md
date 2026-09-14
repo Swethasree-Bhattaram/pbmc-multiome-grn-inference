@@ -1,67 +1,4 @@
-#!/usr/bin/env python
-"""Generate the UNPAIRED 10k report bundle from evaluation.json + QC outputs.
-
-Writes into reports/unpaired-10k/:
-  REPORT.md            — full pipeline report (design, dims, GRN, evaluation, QC)
-  README.md            — short orientation
-  qc_imputation.txt / qc_mixing.txt / qc_biology.txt — raw QC logs (copied)
-
-Report style: clean and data-focused.  No timestamps, no filler prose, fractions
-written inline (e.g. 1,957/8,751).
-"""
-import json, os, shutil
-
-HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
-GRN = f'{PROJ}/results/unpaired_grn/grn_tfonly_reg'
-OUTD = f'{PROJ}/reports/unpaired-10k'
-GT_T_DEDUP, GT_B_DEDUP = 8751, 96846
-GT_T_TOT, GT_B_TOT = 9720, 98338
-
-
-def load_meta():
-    """Integration / imputation facts, read back from the actual artifacts."""
-    import numpy as np
-    H = np.load(f'{PROJ}/results/integration_unpaired/joint_embedding_H.npy', mmap_mode='r')
-    m = {'H': tuple(H.shape)}
-    rt = open(f'{PROJ}/results/integration_unpaired/saga_runtimes.txt').read()
-    for line in rt.splitlines():
-        if 'Global Alignment Score' in line:
-            m['global_score'] = line.split(':')[-1].strip()
-        if 'Pairwise' in line and 'score=' in line:
-            m['pairwise'] = line.split(':', 1)[1].strip()
-    # input set sizes actually handed to GRNBoost2 (not the distinct genes seen in edges)
-    m['n_targets_in'] = sum(1 for l in open(f'{GRN}/target_genes.txt') if l.strip())
-    m['n_regs_in'] = sum(1 for l in open(f'{GRN}/tf_regulators.txt') if l.strip())
-    # mean NN distance of ATAC queries to the RNA reference, from QC
-    for line in open(f'{PROJ}/results/unpaired_grn/qc_imputation.txt'):
-        if 'mean NN distance' in line:
-            m['nn_dist'] = line.split(':')[1].split('(')[0].strip()
-    m['ref_used'] = json.load(open(f'{PROJ}/results/unpaired_grn/qc_mixing.json'))['distinct_ref_cells_used']
-    return m
-
-
-def main():
-    os.makedirs(OUTD, exist_ok=True)
-    E = json.load(open(f'{GRN}/evaluation/evaluation.json'))
-    Q = json.load(open(f'{PROJ}/results/unpaired_grn/qc_report.json'))
-    QM = json.load(open(f'{PROJ}/results/unpaired_grn/qc_mixing.json'))
-    M = load_meta()
-    gt = E['ground_truths']
-
-    def topk_block(name):
-        rows = []
-        for K, (p, r) in gt[name]['rows'].items():
-            rows.append(f'| {int(K):,} | {p} | {r} |')
-        return '\n'.join(rows)
-
-    t25 = '\n'.join(f'| {tf} → {tg} | {imp:.4f} |' for tf, tg, imp in E['top25'])
-
-    def rec(name):
-        d = gt[name]
-        return f"{d['recovered']:,}/{d['dedup']:,} ({d['recovered']/d['dedup']*100:.1f}%)"
-
-    md = f"""# Unpaired 10k PBMC: multiome RNA × external ATAC → GRN
+# Unpaired 10k PBMC: multiome RNA × external ATAC → GRN
 
 **Task.** Run the repo pipeline (integration → reverse-imputeKNN → Arboreto) as an
 **unpaired** experiment between the RNA-seq of the 10x PBMC 10k multiome and the
@@ -95,7 +32,7 @@ It is **not** the v2 "nextgem" 10k ATAC build.
 
 ```
 10x ATAC h5 (cells x peaks)
-  → preprocess_atac10k_ext.py     → data/atac10k_ext/{{counts.mtx, barcodes, features, pca_50}}
+  → preprocess_atac10k_ext.py     → data/atac10k_ext/{counts.mtx, barcodes, features, pca_50}
   → run_integration_unpaired.py    → scSAGA joint embedding H
   → build_imputation_unpaired.py   → reverse-imputeKNN → all-cells matrix
   → run_arboreto_unpaired.py       → GRNBoost2
@@ -114,9 +51,9 @@ treated the same way.
 | Datasets | rna10k (11,898), atac10k_ext (8,161) |
 | `s_shared_cells` | 8,161 (= min of the two, full partial alignment) |
 | `M_samples`, `alpha`, `S_iterations` | 2,000, 0.75, 25 |
-| Joint embedding **H** | {M['H'][0]:,} × {M['H'][1]} |
-| Global alignment score | {M.get('global_score','n/a')} |
-| Pairwise (atac10k_ext -> rna10k) | {M.get('pairwise','n/a').split('=')[-1] if M.get('pairwise') else 'n/a'} |
+| Joint embedding **H** | 20,059 × 30 |
+| Global alignment score | 0.5575 |
+| Pairwise (atac10k_ext -> rna10k) | 0.5382 |
 
 ### Reverse-imputeKNN
 
@@ -128,19 +65,19 @@ row, imputed expression `= ref_expr @ Wᵀ`.
 |---|---|
 | Imputed expression | 36,601 genes × 8,161 ATAC cells |
 | All-cells matrix | **20,059 × 36,601** (float32) — rows [rna10k real (11,898), atac10k_ext imputed (8,161)] |
-| Mean NN distance query→reference | {M.get('nn_dist','n/a')} (in the 30-dim joint embedding) |
-| Reference cells used as neighbours | {M['ref_used']:,} / 11,898 |
+| Mean NN distance query→reference | 0.05305 (in the 30-dim joint embedding) |
+| Reference cells used as neighbours | 9,527 / 11,898 |
 
 ## 3. Arboreto GRNBoost2
 
 | Item | Value |
 |---|---|
-| Cells | {E['n_cells']:,} |
-| **Target genes** | genes present in `trrust_tf.txt` → **{M['n_targets_in']:,}** (TRRUST list 2,862 genes) |
-| **Regulators** (`tf_names`) | TFs present in `tf_only.txt` → **{M['n_regs_in']:,}** (list 829 TFs) |
+| Cells | 20,059 |
+| **Target genes** | genes present in `trrust_tf.txt` → **2,827** (TRRUST list 2,862 genes) |
+| **Regulators** (`tf_names`) | TFs present in `tf_only.txt` → **816** (list 829 TFs) |
 | Union columns fed to GRNBoost2 | 2,852 |
-| Inferred edges | **{E['n_edges']:,}** |
-| Distinct genes actually appearing in edges | {E['n_regulators']:,} regulators, {E['n_targets']:,} targets |
+| Inferred edges | **659,314** |
+| Distinct genes actually appearing in edges | 749 regulators, 2,624 targets |
 | Engine | Arboreto 0.1.6 GRNBoost2, 4 dask workers, seed 666 |
 
 This is the repo's TF-only-regulator variant: targets from the mixed TRRUST list, but
@@ -150,7 +87,31 @@ only true transcription factors allowed to act as regulators.
 
 | TF → target | importance |
 |---|---|
-{t25}
+| EBF1 → PAX5 | 189.4665 |
+| ZEB2 → LTB | 160.0582 |
+| EBF1 → MS4A1 | 148.0450 |
+| TCF7L2 → CDKN1C | 147.9104 |
+| LEF1 → PRKCA | 147.7347 |
+| FOSB → JUN | 147.3921 |
+| GATA2 → ERG | 143.4247 |
+| PAX5 → EBF1 | 141.1844 |
+| CREB5 → VCAN | 138.0819 |
+| LEF1 → FHIT | 133.8027 |
+| HDAC3 → DUX4 | 133.7407 |
+| EBF1 → CD79A | 131.9341 |
+| MYBL1 → CCL5 | 128.3924 |
+| LEF1 → NELL2 | 126.3195 |
+| TCF4 → RUNX2 | 126.1091 |
+| TCF4 → CLEC4C | 122.5741 |
+| NEAT1 → VCAN | 121.9006 |
+| LEF1 → CCR7 | 120.4034 |
+| PAX5 → MS4A1 | 120.2438 |
+| ZEB2 → BCL2 | 120.1024 |
+| NEAT1 → NAMPT | 118.7517 |
+| NEAT1 → ACSL1 | 117.2167 |
+| ETS1 → DUX4 | 113.7856 |
+| NEAT1 → VMP1 | 112.7484 |
+| LEF1 → TCF7 | 112.4250 |
 
 ## 4. Evaluation vs PBMC ground truth
 
@@ -158,20 +119,30 @@ Ground truths are TF→target edge lists, deduplicated before scoring.
 
 | Ground truth | Total | Deduplicated | Recovered | Fraction |
 |---|---|---|---|---|
-| PBMC-TRRUST | {GT_T_TOT:,} | {GT_T_DEDUP:,} | {gt['PBMC-TRRUST']['recovered']:,} | {gt['PBMC-TRRUST']['recovered']/GT_T_DEDUP*100:.1f}% |
-| PBMC-Blood | {GT_B_TOT:,} | {GT_B_DEDUP:,} | {gt['PBMC-Blood']['recovered']:,} | {gt['PBMC-Blood']['recovered']/GT_B_DEDUP*100:.1f}% |
+| PBMC-TRRUST | 9,720 | 8,751 | 3,110 | 35.5% |
+| PBMC-Blood | 98,338 | 96,846 | 4,486 | 4.6% |
 
 ### PBMC-TRRUST — Precision@K / Recall@K
 
 | Top-K | Precision@K | Recall@K |
 |---|---|---|
-{topk_block('PBMC-TRRUST')}
+| 100 | 0.05 | 0.0006 |
+| 500 | 0.038 | 0.0022 |
+| 1,000 | 0.025 | 0.0029 |
+| 5,000 | 0.0168 | 0.0096 |
+| 10,000 | 0.0147 | 0.0168 |
+| 659,314 | 0.0047 | 0.3554 |
 
 ### PBMC-Blood — Precision@K / Recall@K
 
 | Top-K | Precision@K | Recall@K |
 |---|---|---|
-{topk_block('PBMC-Blood')}
+| 100 | 0.03 | 0.0 |
+| 500 | 0.024 | 0.0001 |
+| 1,000 | 0.023 | 0.0002 |
+| 5,000 | 0.0186 | 0.001 |
+| 10,000 | 0.0182 | 0.0019 |
+| 659,314 | 0.0068 | 0.0463 |
 
 ## 5. Context: unpaired vs the repo's paired TF-only runs
 
@@ -288,36 +259,3 @@ Environments: scSAGA `.venv` (py3.12) for preprocessing/integration/imputation/Q
 Large matrices and the downloaded h5 are not committed (see `.gitignore`).
 
 Working checkout: `/Volumes/samsung_ssd/tmp/pbmc-10k-unpaired-grn/`
-"""
-
-    with open(f'{OUTD}/REPORT.md', 'w') as f:
-        f.write(md)
-    print('wrote', f'{OUTD}/REPORT.md')
-
-    with open(f'{OUTD}/README.md', 'w') as f:
-        f.write(f"""# Unpaired 10k PBMC GRN (multiome RNA × external ATAC v1.1)
-
-Integration + reverse-imputeKNN + Arboreto GRNBoost2 on an **unpaired** pairing:
-the 10k multiome RNA (11,898 cells) and the external 10x 10k PBMC ATAC v1.1
-"cells by peaks" dataset (8,161 cells). All-cells matrix 20,059 × 36,601.
-
-- Targets: `trrust_tf.txt` genes present = {E['n_targets']:,}
-- Regulators: `tf_only.txt` TFs present = {E['n_regulators']:,}
-- Edges: {E['n_edges']:,}
-- Recovered: PBMC-TRRUST {rec('PBMC-TRRUST')}, PBMC-Blood {rec('PBMC-Blood')}
-
-See **REPORT.md** for the full pipeline, evaluation tables and QC (including the
-unpaired caveats and the block-segregation comparison against the repo's paired run).
-Raw QC logs: `qc_imputation.txt`, `qc_mixing.txt`, `qc_biology.txt`.
-""")
-    print('wrote', f'{OUTD}/README.md')
-
-    for q in ['qc_imputation.txt', 'qc_mixing.txt', 'qc_biology.txt']:
-        src = f'{PROJ}/results/unpaired_grn/{q}'
-        if os.path.exists(src):
-            shutil.copy(src, f'{OUTD}/{q}')
-    print('copied QC logs')
-
-
-if __name__ == '__main__':
-    main()

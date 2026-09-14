@@ -1,0 +1,55 @@
+independent PCAs: ATAC (8161, 50), RNA (11898, 50)
+kmeans k=6: ATAC cluster sizes [2177, 1572, 802, 722, 1139, 1749]
+kmeans k=6: RNA  cluster sizes [2670, 2029, 1200, 3410, 1126, 1463]
+
+REAL RNA marker profile per RNA cluster (n=11898)
+cluster  n        CD3D     CD3E     IL7R     CCR7    MS4A1    CD79A    CD79B      LYZ   S100A8   S100A9     CD14   FCGR3A     NKG7     GNLY     PPBP   FCER1A
+  C0     2670    0.131    0.051    0.084    0.027    0.028    0.037    0.037    2.815    2.071    2.430    0.829    0.091    0.178    0.205    0.000    0.008
+  C1     2029    1.326    0.965    2.060    0.566    0.055    0.071    0.149    0.708    0.721    0.947    0.086    0.054    0.450    0.362    0.000    0.003
+  C2     1200    0.976    0.720    0.441    0.049    0.039    0.039    0.080    0.803    0.817    1.050    0.117    0.823    2.877    3.174    0.000    0.001
+  C3     3410    1.180    0.881    1.875    1.459    0.021    0.098    0.080    0.812    0.857    1.106    0.105    0.046    0.173    0.197    0.000    0.008
+  C4     1126    0.181    0.068    0.105    0.500    1.709    1.583    1.252    0.834    0.961    1.211    0.121    0.045    0.232    0.270    0.000    0.023
+  C5     1463    0.295    0.189    0.365    0.189    0.065    0.081    0.250    2.718    1.465    1.941    0.526    0.930    0.273    0.268    0.001    0.098
+
+IMPUTED marker profile per ATAC cluster (n=8161)
+cluster  n        CD3D     CD3E     IL7R     CCR7    MS4A1    CD79A    CD79B      LYZ   S100A8   S100A9     CD14   FCGR3A     NKG7     GNLY     PPBP   FCER1A
+  C0     2670    1.114    0.812    1.444    0.535    0.026    0.048    0.100    1.010    0.923    1.175    0.177    0.209    0.872    0.822    0.000    0.004
+  C1     2029    1.139    0.831    1.709    1.222    0.019    0.083    0.089    0.962    0.940    1.166    0.144    0.073    0.202    0.215    0.000    0.010
+  C2     1200    0.447    0.294    0.550    0.659    1.474    1.409    1.192    0.963    0.946    1.210    0.173    0.079    0.324    0.276    0.000    0.007
+  C3     3410    0.198    0.103    0.184    0.071    0.092    0.095    0.116    2.605    1.773    2.126    0.667    0.330    0.207    0.225    0.001    0.011
+  C4     1126    1.017    0.750    1.567    1.045    0.075    0.119    0.127    1.138    1.013    1.249    0.197    0.105    0.236    0.238    0.001    0.012
+  C5     1463    1.024    0.755    1.497    0.664    0.037    0.067    0.109    1.111    0.968    1.241    0.205    0.147    0.519    0.474    0.000    0.006
+
+(ATAC clusters come from the ATAC peak PCA alone; the values are the imputed
+ RNA expression of those cells -- coherence = alignment carries signal)
+
+--- signal-to-noise of imputed markers across ATAC clusters ---
+  CD3D     between-cluster sd=0.3640  mean within-cluster sd=0.3955  ratio=0.920
+  CD3E     between-cluster sd=0.2842  mean within-cluster sd=0.3125  ratio=0.910
+  IL7R     between-cluster sd=0.5755  mean within-cluster sd=0.6487  ratio=0.887
+  CCR7     between-cluster sd=0.3691  mean within-cluster sd=0.4390  ratio=0.841
+  MS4A1    between-cluster sd=0.5315  mean within-cluster sd=0.3283  ratio=1.619
+  CD79A    between-cluster sd=0.4947  mean within-cluster sd=0.3173  ratio=1.559
+  CD79B    between-cluster sd=0.4041  mean within-cluster sd=0.2732  ratio=1.479
+  LYZ      between-cluster sd=0.5883  mean within-cluster sd=0.6540  ratio=0.899
+  S100A8   between-cluster sd=0.3049  mean within-cluster sd=0.4343  ratio=0.702
+  S100A9   between-cluster sd=0.3433  mean within-cluster sd=0.4660  ratio=0.737
+  CD14     between-cluster sd=0.1828  mean within-cluster sd=0.2292  ratio=0.798
+  FCGR3A   between-cluster sd=0.0901  mean within-cluster sd=0.3006  ratio=0.300
+  NKG7     between-cluster sd=0.2401  mean within-cluster sd=0.4389  ratio=0.547
+  GNLY     between-cluster sd=0.2185  mean within-cluster sd=0.4403  ratio=0.496
+  PPBP     between-cluster sd=0.0005  mean within-cluster sd=0.0047  ratio=0.096
+  FCER1A   between-cluster sd=0.0029  mean within-cluster sd=0.0329  ratio=0.090
+
+--- agreement of ATAC-cluster imputed profile with best-matched RNA cluster ---
+  ATAC C0 <-> RNA C2: marker-profile r = +0.920
+  ATAC C1 <-> RNA C3: marker-profile r = +0.881
+  ATAC C2 <-> RNA C4: marker-profile r = +0.992
+  ATAC C3 <-> RNA C0: marker-profile r = +0.781
+  ATAC C4 <-> RNA C5: marker-profile r = +0.117
+  ATAC C5 <-> RNA C1: marker-profile r = +0.756
+mean matched r = +0.741
+
+CONTROL (imputed profiles shuffled across ATAC clusters), mean matched r = +0.485
+  -> if the real value clearly exceeds this control, the cluster structure of the
+     imputation is driven by the ATAC cells themselves, not by chance.

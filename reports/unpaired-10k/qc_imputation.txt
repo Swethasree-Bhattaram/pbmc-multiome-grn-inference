@@ -1,0 +1,27 @@
+all-cells matrix: (20059, 36601) (RNA real (11898, 36601), ATAC imputed (8161, 36601))
+
+--- 1. Per-cell distributional summary (log1p CPM/1e4 units) ---
+RNA real       mean-of-cell-means=0.0801  mean-std=0.3636  mean-frac-nonzero=0.0540  library(mean sum)=2930.2
+ATAC imputed   mean-of-cell-means=0.0779  mean-std=0.2494  mean-frac-nonzero=0.2587  library(mean sum)=2849.7
+global: RNA real mean=0.0801  ATAC imputed mean=0.0779
+
+--- 2. Is the kNN assignment informative? ---
+mean corr(imputed cell, its 20 RNA neighbours) = 1.0000
+mean corr(imputed cell, 20 random RNA cells)     = 0.8819
+mean NN distance of ATAC queries to RNA: 0.05305 (median 0.05268)
+
+--- 3. Lineage-marker recovery in imputed ATAC vs real RNA ---
+  CD3D     RNA-real mean=0.7455   ATAC-imputed mean=0.9394   ratio=1.26
+  CD3E     RNA-real mean=0.5307   ATAC-imputed mean=0.6812   ratio=1.28
+  MS4A1    RNA-real mean=0.1952   ATAC-imputed mean=0.1818   ratio=0.93
+  CD79A    RNA-real mean=0.2124   ATAC-imputed mean=0.2070   ratio=0.97
+  LYZ      RNA-real mean=1.4794   ATAC-imputed mean=1.1766   ratio=0.80
+  NKG7     RNA-real mean=0.5119   ATAC-imputed mean=0.4659   ratio=0.91
+  GNLY     RNA-real mean=0.5428   ATAC-imputed mean=0.4424   ratio=0.82
+  CD14     RNA-real mean=0.3186   ATAC-imputed mean=0.2223   ratio=0.70
+  FCGR3A   RNA-real mean=0.2446   ATAC-imputed mean=0.1528   ratio=0.62
+  PPBP     RNA-real mean=0.0003   ATAC-imputed mean=0.0005   ratio=1.79
+
+--- 4. Integration: is the ATAC block spread across the RNA manifold? ---
+mean fraction of same-modality neighbours: ATAC=0.3435 RNA=0.9966  (0.5 = perfectly mixed)
+ATAC block: 8161 cells = 40.7% of H

@@ -1,0 +1,27 @@
+=== (A) Alignment mixing benchmark: UNPAIRED vs the repo 4-dataset run ===
+Random expectation for "frac same modality" = sum of squared block proportions.
+A well-MIXED joint embedding gives every block frac-same close to its own proportion.
+
+UNPAIRED H (20059, 30) = [rna10k 11898 | atac10k_ext 8161]
+  UNPAIRED (this run):
+    atac10k_ext      n=  8161 ( 40.7%)  frac-same-modality-nbrs=0.3435  (random=0.4068)
+    rna10k           n= 11898 ( 59.3%)  frac-same-modality-nbrs=0.9966  (random=0.5932)
+    overall frac-same=0.7309  random-expectation=0.5174
+
+4-DATASET H (29218, 30) = [rna3k | atac3k | rna10k | atac10k] (repo, paired)
+  4-dataset (repo reference):
+    atac10k          n= 11898 ( 40.7%)  frac-same-modality-nbrs=0.9999  (random=0.4072)
+    atac3k           n=  2711 (  9.3%)  frac-same-modality-nbrs=0.9878  (random=0.0928)
+    rna10k           n= 11898 ( 40.7%)  frac-same-modality-nbrs=0.9980  (random=0.4072)
+    rna3k            n=  2711 (  9.3%)  frac-same-modality-nbrs=0.3304  (random=0.0928)
+    overall frac-same=0.9359  random-expectation=0.3489
+
+=== (B) Imputation neighbour diversity ===
+  distinct RNA reference cells used as neighbours: 9527 / 11898 (80.1%)
+  neighbour-use distribution: max=251, mean=13.7, median=6, cells never used=2371
+  per-query distinct neighbours (of 20): mean=20.00
+
+=== (C) Imputed ATAC profile variability ===
+  pairwise corr among 300 sampled imputed ATAC cells: mean=0.8568 min=0.5599
+  pairwise corr among 300 sampled REAL RNA cells:    mean=0.3936 min=0.1466
+  (imputed cells being as variable as real cells => not collapsed to one profile)
