@@ -1,0 +1,33 @@
+ARBORETO GRNBOOST2 EVALUATION — UNPAIRED 10k (rna10k x atac10k_ext v1.1)
+targets = trrust_tf.txt genes present (2827), regulators = tf_only.txt TFs present (816)
+======================================================================
+Inferred edges: 659314, regulators: 749, targets: 2624
+
+========== EVALUATION vs PBMC-TRRUST ==========
+Total edges: 9720
+Deduplicated edges: 8751
+
+       Top-K     Prec@K   Recall@K
+         100     0.0500     0.0006
+         500     0.0380     0.0022
+        1000     0.0250     0.0029
+        5000     0.0168     0.0096
+       10000     0.0147     0.0168
+      659314     0.0047     0.3554
+
+Edges recovered by GRN: 3110 (35.5%)
+----------------------------------------------------------------------
+========== EVALUATION vs PBMC-Blood ==========
+Total edges: 98338
+Deduplicated edges: 96846
+
+       Top-K     Prec@K   Recall@K
+         100     0.0300     0.0000
+         500     0.0240     0.0001
+        1000     0.0230     0.0002
+        5000     0.0186     0.0010
+       10000     0.0182     0.0019
+      659314     0.0068     0.0463
+
+Edges recovered by GRN: 4486 (4.6%)
+----------------------------------------------------------------------

@@ -1,0 +1,10 @@
+
+--- SAGA-Torch Timing Breakdown ---
+k-NN Graph Construction took: 0.2386 seconds
+Intra-domain Distances (Dijkstra) took: 82.2518 seconds
+Total Optimal Transport Solver took: 109.8052 seconds
+--- SAGA-Torch Metrics ---
+Global Alignment Score (all datasets): 0.5575
+Pairwise: atac10k_ext->rna10k score=0.5382
+Total GW Iterations (last run): 25
+Final GW Convergence Error (last run): 1.1584e-04
