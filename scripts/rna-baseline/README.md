@@ -46,6 +46,26 @@ python scripts/rna-baseline/evaluate_grn_trrust.py      # scSAGA .venv
 run in the old-stack `.venv39` env (python 3.9, dask 2021.10, arboreto 0.1.6);
 see `ENVIRONMENT.md`.
 
+## tf_only-regulator variant
+
+`run_arboreto_tfonly.py` is the same baseline with the **single change** requested:
+regulators come from `data/tf_only.txt` instead of `data/trrust_tf.txt`. Targets
+(the TRRUST genes present, 2,808), the stacked matrix (7,051 x 21,932) and the
+evaluation are unchanged, so the two runs differ only in the regulator list.
+
+```
+N_WORKERS=5 python scripts/rna-baseline/run_arboreto_tfonly.py    # .venv39
+python scripts/rna-baseline/evaluate_grn_tfonly.py                # scSAGA .venv
+python scripts/rna-baseline/write_report_tfonly.py                # scSAGA .venv
+```
+
+Outputs land in `results/rna_baseline/grn_tfonly_reg/` (the network `.tsv` is
+gitignored) and the report in `reports/rna-baseline/REPORT_tfonly.md`.
+`write_report_tfonly.py` reads the original run's network from
+`/Volumes/samsung_ssd/tmp/pbmc-4k-baseline/results/rna_baseline/grn_trrust/` for
+its side-by-side columns; override with `GRN_DIR` / `MATRIX_DIR` if that
+workspace moves.
+
 ## Outputs
 
 ```
@@ -65,3 +85,7 @@ reports/rna-baseline/REPORT.md
 - Top edges are lineage-coherent (CD8A↔CD8B, HLA-B↔HLA-C, CD79A↔MS4A1, LYZ→S100A9,
   GNLY↔PRF1), i.e. the baseline recovers real PBMC co-expression structure even
   without integration.
+
+With the tf_only.txt regulator list (816 regulators) instead of TRRUST (2,808):
+edges **539,629**, PBMC-TRRUST **2655/8751 (30.3%)**, PBMC-Blood
+**3661/96846 (3.8%)**. See `reports/rna-baseline/REPORT_tfonly.md`.

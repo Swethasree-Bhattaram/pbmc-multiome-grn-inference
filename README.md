@@ -27,6 +27,11 @@ This repository covers four workflows:
    imputation**: the 3k multiome RNA and the 10x PBMC 4k RNA matrices are
    restricted to their common gene symbols and stacked, then handed straight to
    GRNBoost2. See `scripts/rna-baseline/` and `reports/rna-baseline/`.
+   A variant of this baseline uses the **purified TF list `data/tf_only.txt`
+   (816 present regulators) instead of the mixed `data/trrust_tf.txt`
+   (2,808 present regulators)** as the GRNBoost2 regulator set; the stacked
+   matrix and the target genes are unchanged. See
+   `reports/rna-baseline/REPORT_tfonly.md`.
 5. **Unpaired full-10k (external ATAC)** — the same pipeline run as an **unpaired**
    experiment: the 10k multiome RNA (11,898 cells) against a *separate* 10x ATAC
    dataset (10k Human PBMCs ATAC v1.1 "cells by peaks", 8,161 cells). The two
@@ -92,7 +97,9 @@ See `reports/00_COMPARISON.md` for the consolidated table,
 | B2 | 6k RNA only (2,711)                 | PBMC-TRRUST / PBMC-Blood |
 
 RNA-only baseline (3k RNA + 4k RNA stacked, no integration/imputation) is in
-`reports/rna-baseline/`.
+`reports/rna-baseline/`; the tf_only-regulator variant of the same baseline is in
+`reports/rna-baseline/REPORT_tfonly.md` (regulators 2808 -> 816, PBMC-TRRUST
+recovered 1433/8751 (16.4%) -> 2655/8751 (30.3%)).
 
 Full-10k variants (A: SCEMENT 3k+10k RNA, 14,609 cells; B1: 3k RNA; B2: 10k RNA)
 are in `reports/full-10k/`.

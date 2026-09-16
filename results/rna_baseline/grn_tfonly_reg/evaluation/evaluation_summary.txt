@@ -1,0 +1,32 @@
+ARBORETO GRNBOOST2 NETWORK EVALUATION SUMMARY (RNA-only baseline, tf_only.txt regulators, TRRUST-only targets)
+======================================================================
+Inferred edges: 539629, regulators: 721, targets: 2472
+
+========== EVALUATION vs PBMC-TRRUST ==========
+Total edges: 9720
+Deduplicated edges: 8751
+
+       Top-K     Prec@K   Recall@K
+         100     0.0200     0.0002
+         500     0.0380     0.0022
+        1000     0.0310     0.0035
+        5000     0.0160     0.0091
+       10000     0.0130     0.0149
+      539629     0.0049     0.3034
+
+Edges recovered by GRN: 2655 (30.3%)
+----------------------------------------------------------------------
+========== EVALUATION vs PBMC-Blood ==========
+Total edges: 98338
+Deduplicated edges: 96846
+
+       Top-K     Prec@K   Recall@K
+         100     0.0100     0.0000
+         500     0.0120     0.0001
+        1000     0.0160     0.0002
+        5000     0.0148     0.0008
+       10000     0.0129     0.0013
+      539629     0.0068     0.0378
+
+Edges recovered by GRN: 3661 (3.8%)
+----------------------------------------------------------------------
