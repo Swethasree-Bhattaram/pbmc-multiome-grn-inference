@@ -32,6 +32,13 @@ This repository covers four workflows:
    (2,808 present regulators)** as the GRNBoost2 regulator set; the stacked
    matrix and the target genes are unchanged. See
    `reports/rna-baseline/REPORT_tfonly.md`.
+4b. **RNA-only baseline (3k + 10k multiome)** — a second control with no
+   integration/imputation: the two *multiome* Gene Expression matrices (3k,
+   2,711 cells + 10k, 11,898 cells; both GRCh38-2020-A, identical feature
+   list) are stacked to 14,609 x 36,591 and handed straight to GRNBoost2 with
+   `tf_only.txt` regulators (816)/`trrust_tf.txt` targets (2,827 present; 2,852
+   union columns). See `scripts/rna-baseline-3k10k/` and
+   `reports/rna-baseline-3k10k/REPORT_tfonly.md`.
 5. **Unpaired full-10k (external ATAC)** — the same pipeline run as an **unpaired**
    experiment: the 10k multiome RNA (11,898 cells) against a *separate* 10x ATAC
    dataset (10k Human PBMCs ATAC v1.1 "cells by peaks", 8,161 cells). The two
@@ -60,6 +67,7 @@ preprocess → scSAGA integration (joint embedding H) → reverse-imputeKNN
 │   ├── multi-dataset-4x/     # 4-dataset experiments A/B1/B2 (+ vendored SCEMENT)
 │   ├── unpaired-10k/         # unpaired: multiome 10k RNA x external 10x ATAC v1.1
 │   └── rna-baseline/         # RNA-only baseline (3k RNA + 4k RNA stacked -> GRNBoost2)
+│   └── rna-baseline-3k10k/   # RNA-only baseline (3k + 10k multiome RNA stacked -> GRNBoost2)
 ├── reports/                  # per-experiment + consolidated comparison reports
 │   ├── single-dataset-3k/    # original 3k workflow reports (REPORT.md, REPORT_DETAILED.md)
 │   └── full-10k/             # full-10k (11,898-cell) multi-dataset reports + figures
@@ -100,6 +108,11 @@ RNA-only baseline (3k RNA + 4k RNA stacked, no integration/imputation) is in
 `reports/rna-baseline/`; the tf_only-regulator variant of the same baseline is in
 `reports/rna-baseline/REPORT_tfonly.md` (regulators 2808 -> 816, PBMC-TRRUST
 recovered 1433/8751 (16.4%) -> 2655/8751 (30.3%)).
+
+The second RNA-only baseline (3k + 10k multiome RNA stacked, no
+integration/imputation) uses `tf_only.txt` regulators / `trrust_tf.txt` targets
+and is in `reports/rna-baseline-3k10k/REPORT_tfonly.md` (14,609 cells, PBMC-TRRUST
+2920/8751 (33.4%), PBMC-Blood 4210/96846 (4.3%)).
 
 Full-10k variants (A: SCEMENT 3k+10k RNA, 14,609 cells; B1: 3k RNA; B2: 10k RNA)
 are in `reports/full-10k/`.
