@@ -1,20 +1,13 @@
-# --- Raw input data & large regenerable matrices (not committed) ---
-raw/
+# --- Large regenerable arrays: never commit (100s of MB each) ---
 *.npy
-*.tsv
-
-# --- Dask ---
+*.npz
+raw/
 dask-worker-space/
-
-# --- OS / Python junk ---
-.DS_Store
-*.log
-*.pyc
-__pycache__/
 .venv*/
+__pycache__/
+*.pyc
+.DS_Store
 
-# --- PACE Phoenix run bundle ---
-pace-phoenix/workspace/
-pace-phoenix/logs/
-pace-phoenix/tools/
-logs/
+# NOTE: network.tsv is deliberately NOT ignored -- it is the deliverable and is
+# small enough to commit.  Per-strategy run_info.txt / genes.txt and the
+# evaluation outputs are committed too, so results/ is reviewable on GitHub.

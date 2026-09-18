@@ -1,0 +1,30 @@
+# One environment for the whole pipeline.  Python >= 3.10 (scSAGA requires it).
+#
+#   bash setup.sh
+#
+# The GRN step needs arboreto, whose final release (0.1.6) predates modern dask.
+# run.py patches the single incompatibility at import time (see grn_compat.py),
+# so nothing here needs legacy pinning -- verified to give an identical edge set
+# on the old pinned stack and on a current numpy/dask.
+
+numpy>=2,<3
+scipy>=1.13
+scikit-learn>=1.4
+pandas>=2.2
+pyyaml
+matplotlib
+joblib
+h5py
+psutil
+
+# integration (scSAGA is installed from git by setup.sh)
+# torch is installed separately from the CPU wheel index by setup.sh
+
+# reference combination: SCEMENT = ComBat, available in scanpy
+anndata
+scanpy
+
+# GRN inference
+arboreto==0.1.6
+dask[complete]
+distributed

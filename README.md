@@ -1,206 +1,174 @@
 # Multimodal GRN inference
 
-Integration → imputation → gene regulatory network, in one config-driven
-pipeline. Runs on PACE Phoenix or on a laptop, unchanged.
-
 ```
-scSAGA integration  ->  reverse-imputeKNN  ->  Arboreto GRNBoost2  ->  evaluation
-   (joint embedding H)     (RNA -> ATAC)          (network)            (vs ground truth)
+scSAGA integration -> reference RNA -> reverse-imputeKNN -> GRNBoost2 -> evaluation
+   (joint embedding)   (one or all RNA)  (RNA -> ATAC)      (network)     (vs truth)
 ```
 
-The only file you edit is **`config.yml`**. Nothing is specific to PBMC, to a
-particular modality, or to a particular number of datasets.
+You give it datasets and a config. It gives you, for each experiment, an inferred
+gene regulatory network and its recovery against ground truth — plus a comparison
+across reference choices when there is more than one RNA dataset.
+
+Nothing in the code is specific to PBMC, to an organism, to a modality or to a
+number of datasets. **`config.yml` is the only file you edit.**
 
 ---
 
 ## Quick start
 
-Two commands. That is the whole interface.
+```bash
+bash setup.sh                  # once: creates one environment, installs everything
+python run.py --check          # verify your paths (no compute)
+python run.py                  # run every experiment in config.yml
+```
+
+On PACE Phoenix:
 
 ```bash
-# once, on a login node
-module load anaconda3
-bash run_all.sh          # creates the envs, installs scSAGA, runs everything
+bash setup.sh                                    # once, on a login node
+sbatch --account=<acct> --qos=inferno run_grn.slurm
 ```
 
-On PACE, submit the SLURM file (it calls `run_all.sh` for you):
+That is the whole interface.
 
-```bash
-sbatch --account=<acct> --qos=inferno slurm_grn.slurm
-```
+---
 
-That runs, for every experiment in `config.yml`:
+## What you provide
 
-```
-scSAGA integration -> reverse-imputeKNN -> Arboreto GRNBoost2 (+evaluation)
-```
-
-If the experiment has more than one RNA dataset it automatically runs one
-experiment per reference strategy (one SCEMENT combination + one per RNA
-dataset) and then writes a comparison of them. See "Experiments" below.
-
-Useful overrides:
-
-```bash
-EXPERIMENTS="ab" bash run_all.sh        # just one experiment
-SKIP_ENVS=1 bash run_all.sh             # envs already built
-GRN_WORKERS=16 bash run_all.sh          # more dask workers for the GRN step
-```
-
-To inspect what will happen without running it:
-
-```bash
-python pipeline/run.py --list      # experiments declared in config.yml
-python pipeline/run.py --check     # validate every dataset path
-```
-
-## Datasets: you provide them
-
-You supply the data; this repo does not download or format anything. Each dataset
-needs a directory containing:
+Each dataset needs a PCA matrix. **RNA datasets additionally need raw counts**,
+because the matrix handed to GRNBoost2 stacks the real RNA cells on top of the
+imputed ATAC cells — those real rows have to come from somewhere.
 
 | file | who needs it | format |
 |---|---|---|
-| `pca_50.txt` | **every** dataset | cells × 50 PCs, whitespace-separated |
-| `counts.mtx` | **RNA only** | raw counts, cells × features, MatrixMarket |
-| `barcodes.txt` | **RNA only** | one per line, order matches `counts` rows |
-| `features.txt` | **RNA only** | one per line, order matches `counts` columns |
+| `pca_50.txt` | **every** dataset | cells x N, whitespace separated. Any N works. |
+| `counts.mtx` | **RNA only** | **cells x features**, MatrixMarket. Raw counts. |
+| `barcodes.txt` | **RNA only** | one per line; row *i* of counts is cell *i* |
+| `features.txt` | **RNA only** | one per line; column *j* of counts is feature *j* |
 
-**ATAC datasets need only `pca_50.txt`** — nothing else at all. Their expression
-is imputed rather than read, and their barcodes are derived from PCA row order if
-you don't supply them.
+ATAC datasets need **only** the PCA. Their expression is imputed, never read.
 
-**RNA datasets need all four files.** The matrix that goes into GRNBoost2 stacks
-the REAL RNA cells on top of the imputed ATAC cells, and those real rows come
-from `counts.mtx`. That is the one non-obvious requirement.
+`python run.py --check` verifies the files exist **and** that they agree:
+counts rows == PCA rows == barcodes, and counts columns == features. All four
+files must describe the same cells in the same order — a mismatch there
+silently misaligns the integration, so it is checked up front.
 
-**Already have PCs?** Point straight at them — nothing else is required for
-integration, because scSAGA consumes only the PCA file:
+Two ways to declare a dataset:
 
 ```yaml
 datasets:
-  my_rna:
+  # all four files in one directory, under the standard names
+  my_rna:  {modality: rna,  dir: /scratch/me/my_rna}
+
+  # or give every path explicitly (e.g. the PCA lives elsewhere)
+  my_atac:
+    modality: atac
+    pca: /scratch/me/pcas/my_atac_50pc.txt
+
+  # mixed: `dir` for the counts, `pca` for an external PCA
+  other_rna:
     modality: rna
-    dir: /scratch/me/expr          # counts.mtx barcodes.txt features.txt
-    pca: /scratch/me/my_50pc.txt   # your own PCs; any cells x N file
+    dir: /scratch/me/other_rna
+    pca: /scratch/me/pcas/other_50pc.txt
 ```
 
-If you have *only* PCs and no expression, that dataset can be integrated but
-cannot serve as an RNA reference (there is no real expression to propagate) —
-`--check` tells you which datasets are usable for what.
-
-### Building the files from 10x h5 (optional helper)
-
-`scripts/prepare_data.sh` builds `data/<name>/{pca_50.txt,counts.mtx,barcodes.txt,
-features.txt}` from 10x h5 files. The PCA is 50 PCs on log1p(CPM/1e4) of the
-top-2000 variable features. Skip it entirely if you already have the files.
+To use a different dataset, change the paths and run. No code changes.
 
 ---
 
 ## Experiments: declare, don't code
 
 An experiment is one integration plus one or more **reference strategies**. A
-strategy answers "which real RNA expression do we propagate onto the ATAC cells?"
+strategy answers: *which real RNA expression do we propagate onto the ATAC cells?*
 
 ```yaml
 experiments:
   ab:
-    datasets:  [rna3k, atac3k, rna10k, atac10k]   # what enters the integration
+    datasets:  [rna3k, atac3k, rna10k, atac10k]   # enters the integration
     anchor:    rna3k                              # everything aligns TO this
     queries:   [atac3k, atac10k]                  # ATAC cells to impute
     references:
-      A:  {combine: all_rna}      # SCEMENT-combine every RNA dataset
-      B1: {dataset: rna3k}        # use 3k RNA alone
-      B2: {dataset: rna10k}       # use 10k RNA alone
+      combined: {combine: all_rna}   # combine every RNA dataset into one
+      rna3k:    {dataset: rna3k}     # use 3k RNA alone
+      rna10k:   {dataset: rna10k}    # use 10k RNA alone
 ```
 
-**More RNA datasets require no code change.** With N RNA datasets in `datasets`
-you get N+1 strategies — one SCEMENT-combined, plus one per individual dataset.
-Add a fourth RNA dataset and a fourth strategy appears automatically.
+**N RNA datasets give N+1 strategies** — one combined, plus one per individual
+dataset. Add a third RNA dataset and a third per-dataset strategy appears with
+no code change.
 
-The all-cells matrix is always the same real RNA cells plus the imputed ATAC
-cells, so experiments differ **only** in which reference fed the imputation —
+The all-cells matrix is *always* the same real RNA cells plus the imputed ATAC
+cells, so the strategies differ **only** in which reference fed the imputation —
 which is exactly what isolates the effect of the reference choice.
 
 ---
 
-## Output layout
+## Output
 
 ```
 results/<experiment>/
 ├── integration/
-│   ├── joint_embedding_H.npy        anchor block first, then datasets order
-│   ├── aligned_<name>.npy            per-dataset block of H
-│   └── integration_info.json         anchor, order, sizes, params
-└── <strategy>/
-    ├── all_cells_gene_expression.npy   real RNA rows + imputed ATAC rows
-    ├── imputed_expression_genes_x_atac.npy
-    ├── genes.npy / genes.txt / all_cells_barcodes.txt / n_cells.txt
-    └── grn_tfonly_reg/
-        ├── network.tsv                 TF, target, importance
-        ├── tf_regulators.txt / target_genes.txt / all_columns.txt
-        ├── run_info.txt                cells, columns, workers, seed, wall time
-        └── evaluation/
-            ├── evaluation_summary.txt  recovered edges vs each ground truth
-            ├── evaluation.json
-            └── top_edges.csv
+│   ├── joint_embedding_H.npy        anchor block first, then declaration order
+│   ├── aligned_<name>.npy           per-dataset block of H
+│   └── integration_info.json        anchor, order, sizes, params
+├── <strategy>/
+│   ├── all_cells_gene_expression.npy   real RNA rows + imputed ATAC rows
+│   ├── genes.txt / all_cells_barcodes.txt / n_cells.txt
+│   ├── imputed_expression_genes_x_atac.npy
+│   └── grn/
+│       ├── network.tsv              TF, target, importance
+│       ├── run_info.txt             cells, columns, workers, seed, wall time
+│       └── evaluation/
+│           ├── evaluation_summary.txt   recovered edges vs each ground truth
+│           ├── evaluation.json
+│           └── top_edges.csv
+├── comparison.md                    (experiment with >1 reference)
+└── comparison.json
 ```
 
-`reports/` and `results/` from earlier runs are kept as-is.
+`comparison.md` reports network size per strategy, pairwise top-100 overlap
+(shared + Jaccard), and recovery vs each ground truth with the best marked.
 
 ---
 
-## GRN specification
+## Running part of the pipeline
 
-Set in `config.yml`:
-
-```yaml
-grn:
-  regulators: data/tf_only.txt      # TFs -> GRNBoost2 tf_names
-  targets:    data/trrust_tf.txt    # genes -> regression targets
-```
-
-- **Regulators** = TFs from `regulators` present in the matrix (~816)
-- **Targets** = genes from `targets` present in the matrix (~2,827)
-- The matrix handed to GRNBoost2 is the **union** of both (~2,852 columns),
-  because every regulator must also be a column
-
-This is identical on PACE and on a laptop; there is no platform-specific branch.
-
-### How much work GRNBoost2 actually does
-
-`grnboost2()` takes no target-gene argument. It forwards to `create_graph()`,
-whose `target_genes` defaults to `'all'`, so **a regression is fitted for every
-column of the matrix — including the regulator columns.** Runtime scales with
-the number of COLUMNS, not the number of targets:
-
-```
-2,827 targets + 816 regulators  ->  union 2,852 columns  ->  2,852 regressions
-```
-
-That is what makes this step dominate the run. It also means a "small" test is
-only small if you shrink the column set. Use these (both default off, for smoke
-tests only):
+Each step reuses what the earlier ones wrote, so you can iterate on the GRN
+without redoing scSAGA:
 
 ```bash
-GRN_MAX_TARGETS=1 GRN_MAX_REGULATORS=2 python pipeline/run.py --experiment ab --stage grn
-#   -> 3 regressions, ~0.7s, vs 2,852 regressions for a real run
+python run.py -e ab --only integrate              # scSAGA only
+python run.py -e ab --only impute                 # reference + imputation
+python run.py -e ab --only grn,evaluate           # iterate here freely
+python run.py -e ab --only grn --max-columns 3    # smoke test
 ```
+
+Steps: `integrate`, `impute`, `grn`, `evaluate`.
 
 ---
 
-## Parallelism
+## GRN: how much work this is
 
-Arboreto accepts a pre-built dask Client, so the worker count is a runtime knob —
-see the [Arboreto user guide](https://arboreto.readthedocs.io/en/latest/userguide.html#running-with-a-custom-dask-client).
+`grnboost2()` accepts no target-gene list. It forwards to `create_graph()`, whose
+`target_genes` defaults to `'all'`, so **one regression is fitted per column** of
+the matrix — including the regulator columns. Runtime scales with **columns**,
+not targets:
 
-```bash
-GRN_WORKERS=16 python pipeline/run.py --experiment ab --stage grn
-GRN_SCHEDULER=tcp://host:8786 python pipeline/run.py ... --stage grn   # external
+```
+~2,827 targets + ~816 regulators -> union ~2,852 columns -> ~2,852 regressions
 ```
 
-Measured on a real matrix (2,000 cells × 400 genes, seed 666, **identical
-21,998 edges** at every setting):
+That is why the GRN step dominates the run, and why the only way to make a test
+cheap is to shrink the column set (`--max-columns`).
+
+Parallelism is a runtime knob (Arboreto takes a pre-built dask client):
+
+```bash
+GRN_WORKERS=16 python run.py                    # or --workers 16
+```
+
+Measured on a real matrix (2,000 cells x 400 genes, seed 666, identical 21,998
+edges at every setting):
 
 | workers | wall | speedup |
 |---|---|---|
@@ -209,11 +177,9 @@ Measured on a real matrix (2,000 cells × 400 genes, seed 666, **identical
 | 4 | 25.2 s | 3.65× |
 | **8** | **18.6 s** | **4.95×** |
 
-Gains flatten past ~8–16 because work splits per target gene and the last gene
-bounds the wall time.
-
-**Memory** scales with worker *count* (not CPUs) because the TF matrix is
-broadcast to every worker — `n_TFs × n_cells × 4 bytes`:
+Gains flatten past ~8–16 (the slowest single gene bounds the wall time).
+**Memory scales with worker count**, because the regulator matrix is broadcast to
+every worker: ~0.35 GB per worker + ~2 GB.
 
 | workers | `--mem` |
 |---|---|
@@ -223,84 +189,105 @@ broadcast to every worker — `n_TFs × n_cells × 4 bytes`:
 
 ---
 
-## Stages
+## On PACE Phoenix
 
-Running a later stage reuses what earlier stages already wrote, so you can
-iterate on the GRN without redoing scSAGA.
-
-```bash
---stage integrate    scSAGA only            -> joint_embedding_H.npy
---stage impute       references + imputation
---stage grn          GRNBoost2
---stage evaluate     scoring
-```
+`run_grn.slurm` carries no hardcoded paths — it runs the `config.yml` next to it,
+wherever you cloned the repo. Submit from the repo directory or point at it:
 
 ```bash
-python pipeline/run.py --experiment ab --stage integrate    # once
-python pipeline/run.py --experiment ab --stage grn         # iterate freely
+sbatch --account=<acct> --qos=inferno run_grn.slurm
+sbatch --account=<acct> --qos=inferno --chdir=/storage/.../my-repo run_grn.slurm
+
+EXPERIMENTS="ab" sbatch ... run_grn.slurm       # one experiment
+ONLY=grn,evaluate sbatch ... run_grn.slurm      # reuse earlier steps
+GRN_WORKERS=8 sbatch --cpus-per-task=8 --mem=32G ... run_grn.slurm
 ```
+
+`--account` and `--qos` are deliberately not baked in. Keep the repo on scratch,
+not home (home is 20 GB). Use `--qos=inferno` for long runs; `embers` is free but
+preemptible.
+
+Build the environment **once on a login node** — compute nodes usually have no
+network, so `setup.sh` (which pip-installs scSAGA from GitHub) cannot run inside
+a job.
 
 ---
 
-## Environments
+## Environment
 
-`envs/setup_envs.sh` builds all three. They cannot be merged:
+One environment for everything.
 
-| env | python | used for | why separate |
-|---|---|---|---|
-| `scmint` | 3.12 | integration, imputation, evaluation | torch/pot/geosketch |
-| `scement` | 3.11 | SCEMENT combined reference | needs anndata/scanpy |
-| `grn39` | 3.9 | GRNBoost2 | arboreto 0.1.6 needs numpy 1.21 + dask 2021.10 |
+```bash
+bash setup.sh                  # conda env named scgrn
+ENV_NAME=mygrn bash setup.sh   # different name
+USE_VENV=1 bash setup.sh       # plain ./.venv, no conda
+```
 
-`grn39` pins **`click==8.0.4`**: `distributed 2021.10` imports
-`click._unicodefun`, which click 8.1 removed, so with click ≥ 8.1 the
-`dask-worker` / `dask-scheduler` CLIs die with an ImportError.
+scSAGA already requires python>=3.10 and depends on anndata/scanpy, so the
+integration, the reference combination (ComBat) and the GRN step can share one
+interpreter. Python 3.11 is used by default.
 
-`pipeline/stages.sh` activates the right env per stage automatically.
+### Why arboreto works on a modern stack
 
----
+arboreto's final release (0.1.6) predates modern dask. In
+`arboreto/core.py:create_graph` it calls `from_delayed(delayed_meta_dfs, ...)`
+*unconditionally*, but only fills `delayed_meta_dfs` when `include_meta=True`.
+With the default `include_meta=False` that is `from_delayed([])`, which old dask
+tolerated and current dask rejects with `TypeError: Must supply at least one
+delayed object`.
 
-## Environment variables
+`grn_compat.py` guards that single call; the value is discarded when
+`include_meta=False`. Nothing else in arboreto touches a changed dask API.
 
-| var | meaning |
-|---|---|
-| `PIPELINE_ROOT` | repo root for relative paths in config.yml (default: config's dir) |
-| `SCAGA_REPO` | scSAGA checkout (default `<root>/tools/scSAGA`) |
-| `SCEMENT_PYTHON` | interpreter with anndata/scanpy, for the SCEMENT step |
-| `GRN_WORKERS`, `GRN_THREADS_PER_WORKER` | dask workers; keep product = `--cpus-per-task` |
-| `GRN_SCHEDULER` | attach to an external dask scheduler |
-| `GRN_MAX_TARGETS` | debug: cap target genes; default off = all 2,827 |
-| `GRN_MAX_REGULATORS` | debug: cap regulators; default off = all 816 |
+Verified equivalence — fixed input (300 cells x 40 genes, seed 666), **identical
+390-edge network** on both stacks:
+
+| | python | numpy | pandas | dask | sklearn |
+|---|---|---|---|---|---|
+| legacy | 3.9.6 | 1.21.5 | 1.4.4 | 2021.10.0 | 1.1.3 |
+| modern | 3.11.16 | 2.4.6 | 3.0.6 | 2026.8.0 | 1.9.1 |
+
+Edge sets match exactly (390/390). Edge *importances* differ in the low digits
+because sklearn's `GradientBoostingRegressor` changed between 1.1 and 1.9 — that
+is inherent to the sklearn version, not to the patch.
+
+### Reference combination
+
+The combined reference uses the vendored SCEMENT `sct_sparse` ComBat in
+`scement.py`, which reproduces the published numbers. This is deliberate:
+**scanpy's `pp.combat` is a different implementation** — on real PBMC counts
+(5,422 cells x 36,601 genes, 2 batches) it differs from `sct_sparse` by
+mean |Δ| 9.5e-4, with 10.6% of nonzeros off by more than 1e-3. Swapping in
+scanpy would silently change published results, so the vendored version stays.
 
 ---
 
 ## Layout
 
 ```
-config.yml                 <- the only file you edit
-pipeline/
-  run.py                   entry point (--list, --check, stages)
-  engine.py                integrate / build_reference / impute / run_grn / evaluate
-  scement_combine.py       SCEMENT batch integration (runs in the scement env)
-  scement_sparse.py        vendored numpy2-safe SCEMENT sct_sparse
-  stages.sh                env-per-stage driver
-envs/setup_envs.sh         conda envs
-scripts/                   optional 10x h5 -> pca/counts prep, raw data download
-slurm_grn.slurm            PACE Phoenix submission
-data/                      your datasets + gene lists + ground truth
-results/, reports/         outputs (earlier runs preserved)
+config.yml        the only file you edit
+run.py            the whole pipeline (integration, reference, impute, grn, evaluate)
+grn_compat.py     makes arboreto work on modern dask
+scement.py        vendored SCEMENT ComBat (sct_sparse)
+setup.sh          one environment
+requirements.txt  dependencies
+run_grn.slurm     PACE Phoenix submission
+data/             gene lists + ground truth (+ the bundled PBMC demo files)
+results/          outputs
+reports/          earlier write-ups
 ```
 
 ---
 
 ## Notes
 
-- **No patched scSAGA needed.** Upstream's CLI computes the joint embedding and
-  discards it. This pipeline calls `Saga.run_multi()` directly and saves `H`
-  itself, so any upstream clone works — and `aligned_*.npy` blocks are indexed by
-  the integration order, so downstream never depends on the CLI's output.
-- **Imputation weight**: `exp(-distance)` over the k=20 nearest reference cells,
-  row-normalised. `impute` reports the mean neighbour distance and how many
+- **No patched scSAGA.** Upstream's CLI computes the joint embedding and discards
+  it; this pipeline calls `Saga.run_multi()` directly and saves `H` itself, so any
+  upstream clone works.
+- **Imputation** is `exp(-distance)` over the k=20 nearest reference cells,
+  row-normalised. The impute step prints the mean neighbour distance and how many
   distinct reference cells were used — a low count means a collapsed alignment.
-- **Ground truth is optional per file.** Any path missing from `ground_truth` is
-  skipped with a printed note.
+- **Ground truth is optional.** Any missing file is skipped with a note.
+- Integration params (`integration:` in config.yml) are optional; the defaults
+  are the values used for the published runs. `s_shared_cells` defaults to the
+  smallest dataset; for paired multiome data you usually want the full cell count.
