@@ -26,10 +26,20 @@ On PACE Phoenix:
 
 ```bash
 bash setup.sh                                    # once, on a login node
-sbatch --account=<acct> --qos=inferno run_grn.slurm
+cd <repo>                                        # run_grn.slurm resolves the
+sbatch --account=<acct> --qos=inferno run_grn.slurm   # repo from $SLURM_SUBMIT_DIR
 ```
 
 That is the whole interface.
+
+Two things that are easy to get wrong the first time:
+
+- **`EXPERIMENTS` defaults to every experiment in config.yml**, including the
+  bundled PBMC demo entries. If you only add your own experiment, the untouched
+  `ab` / `paired` / `unpaired` entries will fail `--check` on missing demo data.
+  Either delete the demo experiments, or submit with `EXPERIMENTS="my_exp"`.
+- **`setup.sh` must run on a login node.** Compute nodes usually have no network
+  and it pip-installs scSAGA from GitHub.
 
 ---
 

@@ -35,6 +35,12 @@
 set -euo pipefail
 
 REPO="${SLURM_SUBMIT_DIR:-$PWD}"
+# If the submit directory has no config.yml (e.g. you ran `sbatch /path/to/repo/run_grn.slurm`
+# from your home directory), fall back to the directory holding this script.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -f "$REPO/config.yml" ] && [ -f "$SCRIPT_DIR/config.yml" ]; then
+  REPO="$SCRIPT_DIR"
+fi
 cd "$REPO"
 CONFIG="${CONFIG:-$REPO/config.yml}"
 [ -f "$CONFIG" ] || { echo "ERROR: no config at $CONFIG" >&2; exit 1; }
@@ -71,7 +77,7 @@ ONLY="${ONLY:-integrate,impute,grn,evaluate}"
 echo "==================== GRN PIPELINE ===================="
 echo "host        : $(hostname)"
 echo "job         : ${SLURM_JOB_ID:-<none>}  account=${SLURM_JOB_ACCOUNT:-none} qos=${SLURM_JOB_QOS:-none}"
-echo "started     : $(date -Is)"
+echo "started     : $(date '+%Y-%m-%dT%H:%M:%S%z')"
 echo "repo        : $REPO"
 echo "config      : $CONFIG"
 echo "python      : $PY"
@@ -89,4 +95,4 @@ for e in $EXPERIMENTS; do ARGS+=(-e "$e"); done
 echo
 echo "==================== RESULTS ========================="
 find "$REPO/results" -name network.tsv -o -name evaluation_summary.txt 2>/dev/null | sort | sed 's/^/  /'
-echo "finished    : $(date -Is)"
+echo "finished    : $(date '+%Y-%m-%dT%H:%M:%S%z')"
