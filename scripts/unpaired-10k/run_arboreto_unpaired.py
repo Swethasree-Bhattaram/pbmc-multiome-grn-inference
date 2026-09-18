@@ -26,8 +26,8 @@ import os, sys, numpy as np, pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
-TR_F = f'{PROJ}/trrust_tf.txt'      # mixed TRRUST list -> TARGETS
-TF_F = f'{PROJ}/data/tf_only.txt'   # purified TF list -> REGULATORS
+TR_F = os.environ.get('TRRUST_FILE', f'{PROJ}/data/trrust_tf.txt')  # mixed TRRUST list -> TARGETS
+TF_F = os.environ.get('TF_ONLY_FILE', f'{PROJ}/data/tf_only.txt')   # purified TF list -> REGULATORS
 DOWN = f'{PROJ}/results/unpaired_grn'
 OUT = f'{DOWN}/grn_tfonly_reg'
 N_WORKERS = int(os.environ.get('GRN_WORKERS', '4'))

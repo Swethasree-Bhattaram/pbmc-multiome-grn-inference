@@ -23,7 +23,8 @@ import os, sys, time, yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
-SCAGA_REPO = os.environ.get('SCAGA_REPO', '/Volumes/samsung_ssd/tmp/scSAGA')
+SCAGA_REPO = os.environ.get('SCAGA_REPO') or os.path.abspath(
+    os.path.join(PROJ, os.pardir, 'scSAGA'))
 OUT = f'{PROJ}/results/integration_unpaired'
 
 sys.path.insert(0, SCAGA_REPO)

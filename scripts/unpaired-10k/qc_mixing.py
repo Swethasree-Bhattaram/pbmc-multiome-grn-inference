@@ -15,7 +15,9 @@ PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.par
 OUTD = f'{PROJ}/results/unpaired_grn'
 K = 20
 NEW = f'{PROJ}/results/integration_unpaired/joint_embedding_H.npy'
-OLD = '/Volumes/samsung_ssd/tmp/pbmc-full10k-grn/results/integration_10k/joint_embedding_H.npy'
+# Reference the repo's paired 4-dataset H if it is available; otherwise the
+# comparison is skipped (the script prints so explicitly).
+OLD = os.environ.get('PAIRED_H', f'{PROJ}/results/integration_10k/joint_embedding_H.npy')
 lines = []
 
 

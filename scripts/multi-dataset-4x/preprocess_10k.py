@@ -17,7 +17,7 @@ import os, h5py, numpy as np, scipy.sparse as sp, scipy.io
 from sklearn.decomposition import PCA
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.path.dirname(HERE)   # project root
+PROJ = os.environ.get('PBSC4K_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
 RAW = os.path.join(PROJ, 'raw', 'pbmc_granulocyte_sorted_10k_filtered_feature_bc_matrix.h5')
 OUT = os.path.join(PROJ, 'data')
 N_SUB = 2711          # same number of cells per modality as the original 3k

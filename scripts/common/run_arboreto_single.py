@@ -7,9 +7,10 @@ Run inside if __name__ == '__main__' guard for macOS multiprocessing.
 """
 import numpy as np, pandas as pd, os
 
-DOWN = '/Users/sbhattaram/pbmc3k_analysis/results/downstream'
-OUT  = '/Users/sbhattaram/pbmc3k_analysis/results/grn'
-TF_F = '/Users/sbhattaram/pbmc3k_analysis/data/trrust_tf.txt'
+PBMC3K = os.environ.get('PBMC3K_ROOT', os.path.expanduser('~/pbmc3k_analysis'))
+DOWN = os.environ.get('SINGLE_DOWN_DIR', os.path.join(PBMC3K, 'results', 'downstream'))
+OUT  = os.environ.get('SINGLE_GRN_DIR', os.path.join(PBMC3K, 'results', 'grn'))
+TF_F = os.environ.get('TRRUST_FILE', os.path.join(PBMC3K, 'data', 'trrust_tf.txt'))
 os.makedirs(OUT, exist_ok=True)
 
 def main():

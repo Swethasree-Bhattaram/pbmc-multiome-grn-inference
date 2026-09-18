@@ -13,7 +13,8 @@ Run with the scSAGA .venv (numpy/pandas).
 import os, re
 import numpy as np, pandas as pd
 
-PROJ = os.environ.get('PBSC4K_ROOT', '/Users/sbhattaram/pbmc-multiome-grn-inference')
+PROJ = os.environ.get('PBSC4K_ROOT', os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir)))
 GRN = os.environ.get('GRN_DIR', f'{PROJ}/results/rna_baseline_3k10k/grn_tfonly_reg')
 DOWN = f'{PROJ}/results/rna_baseline_3k10k'
 REP = f'{PROJ}/reports/rna-baseline-3k10k'

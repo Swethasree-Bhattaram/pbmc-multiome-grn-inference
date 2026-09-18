@@ -12,3 +12,9 @@ dask-worker-space/
 *.pyc
 __pycache__/
 .venv*/
+
+# --- PACE Phoenix run bundle ---
+pace-phoenix/workspace/
+pace-phoenix/logs/
+pace-phoenix/tools/
+logs/

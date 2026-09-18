@@ -8,7 +8,8 @@ import os, sys, time, yaml
 
 PROJ = os.environ.get('PBSC4K_ROOT', os.path.abspath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), os.pardir)))
-SCAGA_REPO = os.environ.get('SCAGA_REPO', '/Volumes/samsung_ssd/tmp/scSAGA')
+SCAGA_REPO = os.environ.get('SCAGA_REPO') or os.path.abspath(
+    os.path.join(PROJ, os.pardir, 'scSAGA'))
 OUT = f'{PROJ}/results/integration_10k'
 
 sys.path.insert(0, SCAGA_REPO)

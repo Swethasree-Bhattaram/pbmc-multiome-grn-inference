@@ -19,7 +19,7 @@ Run with the scSAGA .venv (numpy/pandas).
 """
 import pandas as pd, os, csv
 
-BASE = '/Users/sbhattaram/pbmc3k_analysis'
+BASE = os.environ.get('PBMC3K_ROOT', os.path.expanduser('~/pbmc3k_analysis'))
 GRN  = f'{BASE}/results/grn'
 GT   = f'{BASE}/data/ground_truth'
 OUT  = f'{BASE}/results/grn/evaluation'

@@ -1,0 +1,82 @@
+# Verified package versions for the PACE pipeline.
+#
+# envs/02_setup_envs.sh is the authoritative installer; this file records what
+# was actually used and tested, and can be used as a pip requirements file for
+# the respective environment.
+#
+# ---------------------------------------------------------------------------
+# ENV 1 -- "scmint"  (python 3.12)
+#   h5 splitting, scSAGA integration, reverse-imputeKNN, QC, evaluation, reports
+#   install: conda create -n scmint -c conda-forge python=3.12 pip
+#            pip install -r <the block below>
+#
+#   Torch is installed separately from the CPU wheel index so the CUDA wheels are
+#   never pulled in (scSAGA runs on CPU in this pipeline):
+#     pip install --index-url https://download.pytorch.org/whl/cpu torch
+# ---------------------------------------------------------------------------
+numpy==2.5.2
+scipy==1.18.1
+scikit-learn==1.9.0
+pandas==3.0.5
+h5py==3.16.0
+matplotlib==3.11.1
+joblib==1.5.3
+pydantic==2.13.4
+pot==0.9.7.post1
+geosketch==1.3
+torch==2.13.0
+pyyaml==6.0.3
+
+# ---------------------------------------------------------------------------
+# ENV 2 -- "grn39"  (python 3.9)  *** Arboreto GRNBoost2 ***
+#
+# WHY THESE OLD PINS
+#   arboreto 0.1.6 is incompatible with modern numpy/dask. It is built on the
+#   scikit-learn GradientBoostingRegressor API and dask.distributed's
+#   pre-2022 internals, so it needs the 2021 stack.
+#
+#   click==8.0.4 is REQUIRED, not cosmetic:
+#     distributed 2021.10 imports `click._unicodefun`, which click 8.1 removed.
+#     With click >= 8.1 the `dask-worker` / `dask-scheduler` CLI entry points die
+#     with `ImportError: cannot import name '_unicodefun' from 'click'`.
+#     In-process LocalCluster still works, so the failure is easy to miss -- it
+#     only bites when you use a standalone scheduler or dask-jobqueue, i.e.
+#     exactly the multi-node GRN mode. Verified: click 8.0.4 ships _unicodefun.
+#
+#   (The macOS development env used click 8.1.8 and got away with it because the
+#   published runs used LocalCluster only. Do not copy that pin.)
+#
+#   install: conda create -n grn39 -c conda-forge python=3.9 numpy=1.21 \
+#              pandas=1.4 scipy=1.9 scikit-learn=1.1 dask=2021.10 \
+#              distributed=2021.10 click=8.0.4 joblib pip
+#            pip install arboreto==0.1.6 dask-jobqueue==0.7.2
+# ---------------------------------------------------------------------------
+numpy==1.21.5
+pandas==1.4.4
+scipy==1.9.3
+scikit-learn==1.1.3
+dask==2021.10.0
+distributed==2021.10.0
+click==8.0.4
+arboreto==0.1.6
+dask-jobqueue==0.7.2
+joblib==1.5.3
+cloudpickle==2.0.0
+msgpack==1.1.2
+tblib==3.2.2
+toolz==1.1.0
+zict==3.0.0
+partd==1.4.2
+fsspec==2025.10.0
+psutil==7.2.2
+sortedcontainers==2.4.0
+locket==1.0.0
+tornado==6.5.8
+bokeh==3.4.3
+pyyaml==6.0.3
+jinja2==3.1.6
+markupsafe==3.0.3
+pytz==2026.3.post1
+python-dateutil==2.9.0.post0
+six==1.17.0
+packaging==26.3

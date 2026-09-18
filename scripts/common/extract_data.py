@@ -8,8 +8,10 @@ RNA = 'Gene Expression' features, ATAC = 'Peaks' features.
 import os, h5py, numpy as np, scipy.sparse as sp, scipy.io
 from sklearn.decomposition import PCA
 
-RAW = '/Users/sbhattaram/pbmc3k_analysis/raw/pbmc_granulocyte_sorted_3k_filtered_feature_bc_matrix.h5'
-OUT = '/Users/sbhattaram/pbmc3k_analysis/scsaga_input'
+PBMC3K = os.environ.get('PBMC3K_ROOT', os.path.expanduser('~/pbmc3k_analysis'))
+RAW = os.environ.get('PBMC3K_H5', os.path.join(
+    PBMC3K, 'raw', 'pbmc_granulocyte_sorted_3k_filtered_feature_bc_matrix.h5'))
+OUT = os.environ.get('PBMC3K_INPUT', os.path.join(PBMC3K, 'scsaga_input'))
 os.makedirs(OUT, exist_ok=True)
 
 f = h5py.File(RAW, 'r')

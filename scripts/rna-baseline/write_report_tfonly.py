@@ -13,8 +13,10 @@ Run with the scSAGA .venv (numpy/pandas).
 import os, re
 import numpy as np, pandas as pd
 
-PROJ = os.environ.get('PBSC4K_ROOT', '/Users/sbhattaram/pbmc-multiome-grn-inference')
-ORIG = '/Volumes/samsung_ssd/tmp/pbmc-4k-baseline/results/rna_baseline/grn_trrust'
+PROJ = os.environ.get('PBSC4K_ROOT', os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir)))
+ORIG = os.environ.get('ORIG_GRN_DIR',
+                         f'{PROJ}/results/rna_baseline/grn_trrust')
 # the network .tsv is gitignored, so this run's GRN dir may live outside the repo
 GRN = os.environ.get('GRN_DIR', f'{PROJ}/results/rna_baseline/grn_tfonly_reg')
 REP = f'{PROJ}/reports/rna-baseline'

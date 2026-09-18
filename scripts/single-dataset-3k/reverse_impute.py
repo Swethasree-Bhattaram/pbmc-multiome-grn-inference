@@ -7,9 +7,10 @@ No separate extract_embedding.py step was used to produce H.
 """
 import numpy as np, scipy.io, scipy.sparse as sp
 
-RES  = '/Users/sbhattaram/pbmc3k_analysis/results/scsaga_output'
-IN   = '/Users/sbhattaram/pbmc3k_analysis/scsaga_input'
-DOWN = '/Users/sbhattaram/pbmc3k_analysis/results/downstream'
+PBMC3K = os.environ.get('PBMC3K_ROOT', os.path.expanduser('~/pbmc3k_analysis'))
+RES  = os.environ.get('SCSAGA_OUT_DIR', os.path.join(PBMC3K, 'results', 'scsaga_output'))
+IN   = os.environ.get('SCSAGA_IN_DIR', os.path.join(PBMC3K, 'scsaga_input'))
+DOWN = os.environ.get('SINGLE_DOWN_DIR', os.path.join(PBMC3K, 'results', 'downstream'))
 import os; os.makedirs(DOWN, exist_ok=True)
 
 H = np.load(f'{RES}/joint_embedding_H.npy')           # (5422, 30)  rna then atac
