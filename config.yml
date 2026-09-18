@@ -1,0 +1,111 @@
+# =============================================================================
+#  GRN PIPELINE CONFIG  --  the only file you edit
+# =============================================================================
+#
+# Nothing here is specific to PBMC.  Declare your datasets and the experiments
+# you want; the pipeline figures out the rest.
+#
+# A dataset needs only a PCA file (cells x 50) to enter the scSAGA integration.
+# counts/barcodes/features are needed ONLY if the dataset is used as an RNA
+# reference for reverse-imputeKNN (its real expression has to be propagated).
+#
+#   pca        cells x 50 PCA, whitespace separated.  If you already have this,
+#              just point at it -- nothing else is required for integration.
+#   counts     cells x features MatrixMarket (.mtx), RAW counts
+#   barcodes   one cell barcode per line, order must match counts rows
+#   features   one feature name per line, order must match counts columns
+#
+# Paths are relative to PIPELINE_ROOT (default: this file's directory), so the
+# same config works on PACE and on a laptop.
+# =============================================================================
+
+# ---------------------------------------------------------------- datasets ---
+datasets:
+
+  3k_rna:      {modality: rna,  dir: data/3k_rna}
+  3k_atac:     {modality: atac, dir: data/3k_atac}
+  6k_rna:      {modality: rna,  dir: data/6k_rna}
+  6k_atac:     {modality: atac, dir: data/6k_atac}
+  10k_rna:     {modality: rna,  dir: data/10k_rna}
+  10k_atac:    {modality: atac, dir: data/10k_atac}
+  atac10k_ext: {modality: atac, dir: data/atac10k_ext}
+
+  # If your PCA already lives somewhere else, override just the pca path:
+  #
+  #   my_rna:
+  #     modality: rna
+  #     dir: /scratch/me/processed/my_rna       # counts/barcodes/features here
+  #     pca: /scratch/me/pcas/my_rna_50pc.txt   # optional separate PCA file
+
+# ------------------------------------------------------------- experiments ---
+#
+# Each experiment = ONE scSAGA integration + one or more REFERENCE strategies.
+# A reference strategy answers: "which real RNA expression do we propagate
+# onto the ATAC cells?"  This is the A/B comparison you want.
+#
+#   datasets    every dataset that enters the integration (RNA + ATAC)
+#   anchor      the dataset everything is aligned TO. Must be an RNA dataset.
+#   queries     the ATAC datasets to be imputed
+#   references  one entry per strategy:
+#                 {dataset: <rna_name>}      use that single RNA dataset
+#                 {combine: all_rna}         SCEMENT-combine every RNA dataset
+#                                            in `datasets` into one reference
+#
+# With N RNA datasets in the integration you get N+1 strategies automatically:
+# one SCEMENT-combined reference, plus one per individual RNA dataset.
+# Add a 3rd RNA dataset and a 4th strategy appears with no code change.
+# =============================================================================
+
+experiments:
+
+  # 4-dataset: 3k multiome + full 10k multiome, 11,898-cell 10k.
+  # Two RNA datasets -> 3 strategies (SCEMENT / 3k / 10k).
+  ab:
+    datasets:  [rna3k, atac3k, rna10k, atac10k]
+    anchor:    rna3k
+    queries:   [atac3k, atac10k]
+    references:
+      A:  {combine: all_rna}
+      B1: {dataset: rna3k}
+      B2: {dataset: rna10k}
+
+  # 4-dataset with the 2,711-cell subsample of the 10k ("6k").
+  ab_6k:
+    datasets:  [rna3k, atac3k, rna6k, atac6k]
+    anchor:    rna3k
+    queries:   [atac3k, atac6k]
+    references:
+      A:  {combine: all_rna}
+      B1: {dataset: rna3k}
+      B2: {dataset: rna6k}
+
+  # Unpaired: 10k multiome RNA against a SEPARATE 10k ATAC dataset from 10x
+  # (different nuclei, hg19 peaks). One RNA dataset -> one strategy.
+  unpaired:
+    datasets:  [rna10k, atac10k_ext]
+    anchor:    rna10k
+    queries:   [atac10k_ext]
+    references:
+      B2: {dataset: rna10k}
+
+  # Paired: 10k multiome RNA against its OWN ATAC (same nuclei).
+  paired:
+    datasets:  [rna10k, atac10k]
+    anchor:    rna10k
+    queries:   [atac10k]
+    references:
+      B2: {dataset: rna10k}
+
+# ------------------------------------------------------------------- GRN -----
+grn:
+  # Regulators handed to GRNBoost2 (tf_names). One TF per line.
+  regulators: data/tf_only.txt
+  # Target genes: only genes listed here are used as regression targets.
+  targets:    data/trrust_tf.txt
+
+# ---------------------------------------------------------- ground truth -----
+# TF,TARGET CSV edge lists for scoring. Optional -- evaluation is skipped for
+# any file that is missing.
+ground_truth:
+  PBMC-TRRUST: data/ground_truth/PBMC-TRRUST.csv
+  PBMC-Blood:  data/ground_truth/PBMC-Blood.csv
