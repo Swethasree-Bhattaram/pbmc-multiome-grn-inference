@@ -14,6 +14,7 @@ shapes and identical regulator/target/edge counts.
 
 | File | Was | Now |
 |---|---|---|
+| `scripts/unpaired-10k/*.py` (9 files) | `PROJ = os.environ.get('UNPAIRED_ROOT', os.path.join(HERE, os.pardir))` — **off-by-one**: with `UNPAIRED_ROOT` unset this resolves to `scripts/`, so `data/` and `results/` point inside `scripts/`. Only ever worked because the env var was always exported | two `os.pardir` levels, i.e. `scripts/<workflow>/` → repo root |
 | `scripts/unpaired-10k/run_arboreto_unpaired.py` | `TR_F = f'{PROJ}/trrust_tf.txt'` — **broken path**: the file lives at `data/trrust_tf.txt`, and there is no `trrust_tf.txt` at the repo root, so the script could only ever work in a workspace that happened to have a loose copy | `TR_F = os.environ.get('TRRUST_FILE', f'{PROJ}/data/trrust_tf.txt')` |
 | `scripts/unpaired-10k/run_arboreto_unpaired.py` | `TF_F` fixed to `data/tf_only.txt` | overridable via `TF_ONLY_FILE` |
 | `scripts/unpaired-10k/qc_mixing.py` | `OLD = '/Volumes/samsung_ssd/tmp/pbmc-full10k-grn/...'` | `os.environ.get('PAIRED_H', f'{PROJ}/results/integration_10k/joint_embedding_H.npy')`; the comparison is skipped with a printed note when absent |

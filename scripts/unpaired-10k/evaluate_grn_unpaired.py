@@ -15,7 +15,11 @@ import os, sys, csv, json
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
+# Repo root: $UNPAIRED_ROOT, else two levels up (scripts/<workflow>/ -> repo).
+# NOTE: one os.pardir would resolve to scripts/, which is a bug when the
+# env var is unset (results/ and data/ then point inside scripts/).
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 GRN = f'{PROJ}/results/unpaired_grn/grn_tfonly_reg'
 OUT = f'{GRN}/evaluation'
 GT = f'{PROJ}/data/ground_truth'

@@ -24,7 +24,11 @@ from sklearn.preprocessing import StandardScaler
 from scipy.optimize import linear_sum_assignment
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
+# Repo root: $UNPAIRED_ROOT, else two levels up (scripts/<workflow>/ -> repo).
+# NOTE: one os.pardir would resolve to scripts/, which is a bug when the
+# env var is unset (results/ and data/ then point inside scripts/).
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 OUTD = f'{PROJ}/results/unpaired_grn'
 DATA = f'{PROJ}/data'
 N_RNA, N_ATAC, KC = 11898, 8161, 6

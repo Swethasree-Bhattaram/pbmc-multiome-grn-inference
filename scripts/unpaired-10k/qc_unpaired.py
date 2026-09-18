@@ -14,7 +14,11 @@ Writes results/unpaired_grn/qc_imputation.txt and qc_report.json.
 import os, json, numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
+# Repo root: $UNPAIRED_ROOT, else two levels up (scripts/<workflow>/ -> repo).
+# NOTE: one os.pardir would resolve to scripts/, which is a bug when the
+# env var is unset (results/ and data/ then point inside scripts/).
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 RES = f'{PROJ}/results/integration_unpaired'
 OUTD = f'{PROJ}/results/unpaired_grn'
 K = 20

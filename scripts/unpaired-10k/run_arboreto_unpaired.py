@@ -25,7 +25,11 @@ arboreto 0.1.6).  Must be wrapped in `if __name__ == '__main__'` on macOS
 import os, sys, numpy as np, pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
+# Repo root: $UNPAIRED_ROOT, else two levels up (scripts/<workflow>/ -> repo).
+# NOTE: one os.pardir would resolve to scripts/, which is a bug when the
+# env var is unset (results/ and data/ then point inside scripts/).
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 TR_F = os.environ.get('TRRUST_FILE', f'{PROJ}/data/trrust_tf.txt')  # mixed TRRUST list -> TARGETS
 TF_F = os.environ.get('TF_ONLY_FILE', f'{PROJ}/data/tf_only.txt')   # purified TF list -> REGULATORS
 DOWN = f'{PROJ}/results/unpaired_grn'

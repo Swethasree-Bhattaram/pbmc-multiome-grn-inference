@@ -26,8 +26,8 @@ import os, h5py, numpy as np, scipy.sparse as sp, scipy.io
 from sklearn.decomposition import PCA
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT',
-                      os.path.abspath(os.path.join(HERE, os.pardir)))
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 RAW = os.path.join(PROJ, 'raw', 'atac10k_v1.1_peaks.h5')
 OUT = os.path.join(PROJ, 'data', 'atac10k_ext')
 

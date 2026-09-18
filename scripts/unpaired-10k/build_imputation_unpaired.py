@@ -25,7 +25,11 @@ All-cells rows: [RNA10k real (11898), ATAC10k-ext imputed (8161)].
 import os, numpy as np, scipy.io, scipy.sparse as sp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(HERE, os.pardir)))
+# Repo root: $UNPAIRED_ROOT, else two levels up (scripts/<workflow>/ -> repo).
+# NOTE: one os.pardir would resolve to scripts/, which is a bug when the
+# env var is unset (results/ and data/ then point inside scripts/).
+PROJ = os.environ.get('UNPAIRED_ROOT', os.path.abspath(os.path.join(
+    HERE, os.pardir, os.pardir)))
 RES = f'{PROJ}/results/integration_unpaired'
 DATA = f'{PROJ}/data'
 OUT = f'{PROJ}/results/unpaired_grn'
