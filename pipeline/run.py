@@ -201,7 +201,8 @@ def run_experiment(cfg, datasets, exp_name, stages, args):
                            grn_dir, n_workers=args.workers,
                            threads_per_worker=args.threads_per_worker,
                            seed=args.seed, scheduler=args.scheduler,
-                           max_targets=args.max_targets)
+                           max_targets=args.max_targets,
+                           max_regulators=args.max_regulators)
 
         if 'evaluate' in stages:
             print('--- evaluation')
@@ -227,8 +228,14 @@ def main():
                     default=int(os.environ.get('GRN_THREADS_PER_WORKER', '1')))
     ap.add_argument('--scheduler', default=os.environ.get('GRN_SCHEDULER'))
     ap.add_argument('--seed', type=int, default=666)
+    # Smoke-test only.  grnboost2() fits one regression per COLUMN, so the only
+    # way to make a run cheap is to prune the column set -- these truncate the
+    # target and regulator lists before the union is built.  Leave unset for a
+    # real run; both default off.
     ap.add_argument('--max-targets', type=int,
                     default=int(os.environ.get('GRN_MAX_TARGETS', '0')) or None)
+    ap.add_argument('--max-regulators', type=int,
+                    default=int(os.environ.get('GRN_MAX_REGULATORS', '0')) or None)
     args = ap.parse_args()
 
     if args.workers is None:

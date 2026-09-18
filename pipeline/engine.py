@@ -322,13 +322,28 @@ def impute(H, order, sizes, ref_expr, ref_H, ref_bc, query_names, outdir,
 # 4. Arboreto GRNBoost2
 # --------------------------------------------------------------------------- #
 def run_grn(expr_all, genes, reg_file, tgt_file, outdir, n_workers=8,
-            threads_per_worker=1, seed=666, scheduler=None, max_targets=None):
+            threads_per_worker=1, seed=666, scheduler=None,
+            max_targets=None, max_regulators=None):
     """GRNBoost2 on the all-cells matrix.
 
     Regulators (tf_names) = TFs from `reg_file` present in the gene list.
     Targets               = genes from `tgt_file` present in the gene list.
     The matrix handed to GRNBoost2 is the UNION of both, because every regulator
     must also be a column.
+
+    IMPORTANT -- how much work this actually is:
+        grnboost2() does NOT accept a target-gene list.  It forwards to
+        create_graph(), whose `target_genes` defaults to 'all', so a regression
+        is fitted for EVERY COLUMN of the matrix -- including the regulator
+        columns.  Runtime therefore scales with the number of COLUMNS
+        (targets + regulators), not with the number of targets.
+
+        In this pipeline that is ~2,852 regressions (2,827 targets + 816
+        regulators, union 2,852), not 2,827.
+
+    max_targets / max_regulators exist only to make smoke tests cheap: they prune
+    the column set, which is the only way to reduce the regression count.  Leave
+    both unset for a real run.
 
     Parallelism: Arboreto takes a pre-built dask Client via client_or_address,
     so the worker count is a runtime choice.
@@ -344,16 +359,18 @@ def run_grn(expr_all, genes, reg_file, tgt_file, outdir, n_workers=8,
     gset = set(genes)
     target_genes = [g for g in genes if g in set(tgts)]
     present_tfs = [g for g in genes if g in set(regs)]
-    cols = list(dict.fromkeys(target_genes + present_tfs))
     if max_targets:
-        keep = set(target_genes[:max_targets]) | set(present_tfs)
-        cols = [c for c in cols if c in keep]
+        target_genes = target_genes[:max_targets]
+    if max_regulators:
+        present_tfs = present_tfs[:max_regulators]
+    cols = list(dict.fromkeys(target_genes + present_tfs))
     print(f'  regulators present {len(present_tfs)}, targets present '
           f'{len(target_genes)}, union columns {len(cols)}', flush=True)
+    print(f'  NOTE: GRNBoost2 fits one regression per COLUMN -> '
+          f'{len(cols)} regressions (regulator columns are fitted too)', flush=True)
     if not present_tfs:
         raise SystemExit('no regulators present -- check the regulators file')
 
-    gidx = {g: i for i, g in enumerate(gset)}
     gene_order = {g: i for i, g in enumerate(genes)}
     X = np.load(expr_all, mmap_mode='r') if isinstance(expr_all, str) else expr_all
     sub = pd.DataFrame(np.asarray(X[:, [gene_order[g] for g in cols]], dtype=np.float32),

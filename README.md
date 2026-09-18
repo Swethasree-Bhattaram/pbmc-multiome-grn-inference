@@ -144,6 +144,26 @@ grn:
 
 This is identical on PACE and on a laptop; there is no platform-specific branch.
 
+### How much work GRNBoost2 actually does
+
+`grnboost2()` takes no target-gene argument. It forwards to `create_graph()`,
+whose `target_genes` defaults to `'all'`, so **a regression is fitted for every
+column of the matrix — including the regulator columns.** Runtime scales with
+the number of COLUMNS, not the number of targets:
+
+```
+2,827 targets + 816 regulators  ->  union 2,852 columns  ->  2,852 regressions
+```
+
+That is what makes this step dominate the run. It also means a "small" test is
+only small if you shrink the column set. Use these (both default off, for smoke
+tests only):
+
+```bash
+GRN_MAX_TARGETS=1 GRN_MAX_REGULATORS=2 python pipeline/run.py --experiment ab --stage grn
+#   -> 3 regressions, ~0.7s, vs 2,852 regressions for a real run
+```
+
 ---
 
 ## Parallelism
@@ -226,7 +246,8 @@ python pipeline/run.py --experiment ab --stage grn         # iterate freely
 | `SCEMENT_PYTHON` | interpreter with anndata/scanpy, for the SCEMENT step |
 | `GRN_WORKERS`, `GRN_THREADS_PER_WORKER` | dask workers; keep product = `--cpus-per-task` |
 | `GRN_SCHEDULER` | attach to an external dask scheduler |
-| `GRN_MAX_TARGETS` | debug: cap target genes (default off = all 2,827) |
+| `GRN_MAX_TARGETS` | debug: cap target genes; default off = all 2,827 |
+| `GRN_MAX_REGULATORS` | debug: cap regulators; default off = all 816 |
 
 ---
 
