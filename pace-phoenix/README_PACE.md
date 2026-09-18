@@ -129,9 +129,12 @@ The unpaired workflow needs only `10k_rna`, `atac10k_ext` plus the repo's
 `SKIP_6K=1 SKIP_4K=1` makes a minimal run.
 
 **Verified equivalence.** Each generated directory was hashed against the
-originals used for the published results — all four files byte-identical for
-`3k_rna`, `10k_rna`, `10k_atac`, `atac10k_ext`; `4k_rna` identical after a
-`barcodes.tsv` → `barcodes.txt` rename. The PCA step in the splitter is also
+originals used for the published results — **all six** prepared directories are
+byte-identical (all four files each): `3k_rna`, `3k_atac`, `10k_rna`, `10k_atac`,
+`6k_rna`, `6k_atac`, `atac10k_ext`; and `4k_rna` is identical after a
+`barcodes.tsv` → `barcodes.txt` rename. The 6k deterministic subsample
+(`--subsample 2711 --seed 0`) reproduces the repo's own
+`preprocess_10k.py` subsample exactly. The PCA step in the splitter is also
 numerically identical to the repo's two different PCA recipes (identical feature
 selection; max |PC difference| 4.3e-12), so no downstream number shifts.
 
