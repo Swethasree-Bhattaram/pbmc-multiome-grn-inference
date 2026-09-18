@@ -79,19 +79,36 @@ def check(cfg, datasets, experiment=None):
             print(f'  {e}: unknown datasets {unknown}'); ok = False; continue
         refs = spec.get('references') or {}
         missing_pca = [n for n in names if not datasets[n].has_pca()]
-        need_expr = set(spec.get('queries') or [])
+
+        # What each dataset ACTUALLY needs at runtime, matched to the code paths:
+        #   every dataset      -> pca_50.txt          (enters the integration)
+        #   every RNA dataset  -> counts + features + barcodes
+        #                        (its REAL cells become the top rows of the
+        #                         all-cells matrix; features give gene names,
+        #                         barcodes label the rows)
+        # ATAC datasets need pca_50.txt ONLY -- nothing else at all.  Their
+        # expression is imputed rather than read, and their barcodes are
+        # synthesised from PCA row order when no barcodes file is given.
+        need_rna = {n for n in names if datasets[n].modality == 'rna'}
         for r in refs.values():
             if 'dataset' in r:
-                need_expr.add(r['dataset'])
-            else:
-                need_expr.update(n for n in names if datasets[n].modality == 'rna')
-        missing_expr = [n for n in sorted(need_expr)
-                        if not datasets[n].has_expression()]
+                need_rna.add(r['dataset'])
+
+        missing_counts = [n for n in sorted(need_rna)
+                          if not datasets[n].has_counts()]
+        missing_features = [n for n in sorted(need_rna)
+                            if not datasets[n].has_features()]
+        missing_bc = [n for n in sorted(need_rna)
+                      if not datasets[n].has_barcodes()]
         flags = []
         if missing_pca:
             flags.append(f'MISSING PCA: {missing_pca}'); ok = False
-        if missing_expr:
-            flags.append(f'MISSING EXPRESSION: {missing_expr}'); ok = False
+        if missing_counts:
+            flags.append(f'MISSING counts: {missing_counts}'); ok = False
+        if missing_features:
+            flags.append(f'MISSING features: {missing_features}'); ok = False
+        if missing_bc:
+            flags.append(f'MISSING barcodes: {missing_bc}'); ok = False
         status = 'OK' if not flags else ' | '.join(flags)
         print(f'  {e}: {" + ".join(names)}  anchor={spec["anchor"]}')
         print(f'      strategies: {", ".join(refs)}   -> {status}')
@@ -149,6 +166,12 @@ def run_experiment(cfg, datasets, exp_name, stages, args):
         H = np.load(H_path)
         print(f'\n--- reuse integration H {H.shape}')
 
+    # If only integration was requested, stop here: the per-strategy loop below
+    # consumes the all-cells matrix, which impute produces.
+    if stages == ['integrate']:
+        print(f'\nintegration complete; H is in {integ_dir}')
+        return
+
     # cache real RNA expression once per experiment
     rna_expr = {}
     for n in rna_names:
@@ -190,6 +213,10 @@ def run_experiment(cfg, datasets, exp_name, stages, args):
             print(f'    all-cells matrix {all_expr.shape} '
                   f'(rows: {len(all_bc) - len(q_bc)} real RNA + {len(q_bc)} imputed ATAC)')
         else:
+            # Neither impute nor grn/evaluate requested for this strategy is fine
+            # only if nothing downstream needs the matrix.
+            if not (set(stages) & {'grn', 'evaluate'}):
+                continue
             if not os.path.exists(all_expr_path):
                 raise SystemExit(f'no {all_expr_path}; run --stage impute first')
             genes = [l.strip() for l in open(f'{sdir}/genes.txt')]
@@ -197,9 +224,10 @@ def run_experiment(cfg, datasets, exp_name, stages, args):
 
         if 'grn' in stages:
             print(f'--- Arboreto GRNBoost2 ({args.workers} workers)')
+            grn_cfg = cfg.get('grn') or {}
             engine.run_grn(all_expr_path, genes,
-                           resolve(root, cfg['grn']['regulators']),
-                           resolve(root, cfg['grn']['targets']),
+                           resolve(root, grn_cfg.get('regulators') or 'data/tf_only.txt'),
+                           resolve(root, grn_cfg.get('targets') or 'data/trrust_tf.txt'),
                            grn_dir, n_workers=args.workers,
                            threads_per_worker=args.threads_per_worker,
                            seed=args.seed, scheduler=args.scheduler,
@@ -210,6 +238,13 @@ def run_experiment(cfg, datasets, exp_name, stages, args):
             print('--- evaluation')
             gt = {k: resolve(root, v) for k, v in (cfg.get('ground_truth') or {}).items()}
             engine.evaluate(f'{grn_dir}/network.tsv', gt, f'{grn_dir}/evaluation')
+
+    # -------------------------------------------------- comparison
+    # When an experiment has more than one reference strategy (i.e. more than one
+    # RNA dataset), compare them so the effect of the reference choice is visible.
+    if 'evaluate' in stages and len(references) > 1:
+        engine.compare_strategies(exp_dir, references, root,
+                                  cfg.get('ground_truth') or {})
 
 
 def main():
@@ -241,9 +276,12 @@ def main():
     args = ap.parse_args()
 
     if args.workers is None:
+        # SLURM_CPUS_PER_TASK is the right answer on a cluster; on a laptop fall
+        # back to the core count but never more than 8 -- beyond ~8 the speedup
+        # in GRNBoost2 flattens (measured: 1w 92s, 2w 47s, 4w 25s, 8w 19s).
         import multiprocessing
         args.workers = int(os.environ.get('SLURM_CPUS_PER_TASK')
-                           or multiprocessing.cpu_count())
+                           or min(multiprocessing.cpu_count(), 8))
 
     cfg = load_config(args.config, args.root)
     datasets = build_datasets(cfg)

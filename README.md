@@ -15,41 +15,64 @@ particular modality, or to a particular number of datasets.
 
 ## Quick start
 
+Two commands. That is the whole interface.
+
 ```bash
-# 1. environments (once) -- creates scmint, scement, grn39
-module load anaconda3 && bash envs/setup_envs.sh
-
-# 2. scSAGA checkout (any clone of upstream works -- no patched fork needed)
-git clone https://github.com/AluruLab/scSAGA.git tools/scSAGA
-
-# 3. see what the config defines, and validate your inputs
-python pipeline/run.py --list
-python pipeline/run.py --check
-
-# 4. run
-python pipeline/run.py --all                 # every experiment in config.yml
-python pipeline/run.py --experiment ab       # just one
+# once, on a login node
+module load anaconda3
+bash run_all.sh          # creates the envs, installs scSAGA, runs everything
 ```
 
-On PACE submit the included SLURM file instead of step 4:
+On PACE, submit the SLURM file (it calls `run_all.sh` for you):
 
 ```bash
 sbatch --account=<acct> --qos=inferno slurm_grn.slurm
 ```
 
----
+That runs, for every experiment in `config.yml`:
+
+```
+scSAGA integration -> reverse-imputeKNN -> Arboreto GRNBoost2 (+evaluation)
+```
+
+If the experiment has more than one RNA dataset it automatically runs one
+experiment per reference strategy (one SCEMENT combination + one per RNA
+dataset) and then writes a comparison of them. See "Experiments" below.
+
+Useful overrides:
+
+```bash
+EXPERIMENTS="ab" bash run_all.sh        # just one experiment
+SKIP_ENVS=1 bash run_all.sh             # envs already built
+GRN_WORKERS=16 bash run_all.sh          # more dask workers for the GRN step
+```
+
+To inspect what will happen without running it:
+
+```bash
+python pipeline/run.py --list      # experiments declared in config.yml
+python pipeline/run.py --check     # validate every dataset path
+```
 
 ## Datasets: you provide them
 
 You supply the data; this repo does not download or format anything. Each dataset
 needs a directory containing:
 
-| file | needed for | format |
+| file | who needs it | format |
 |---|---|---|
-| `pca_50.txt` | **integration** (scSAGA) | cells × 50 PCs, whitespace-separated |
-| `counts.mtx` | **RNA reference** only | raw counts, cells × features, MatrixMarket |
-| `barcodes.txt` | RNA reference only | one barcode per line, order matches `counts` rows |
-| `features.txt` | RNA reference only | one feature per line, order matches `counts` columns |
+| `pca_50.txt` | **every** dataset | cells × 50 PCs, whitespace-separated |
+| `counts.mtx` | **RNA only** | raw counts, cells × features, MatrixMarket |
+| `barcodes.txt` | **RNA only** | one per line, order matches `counts` rows |
+| `features.txt` | **RNA only** | one per line, order matches `counts` columns |
+
+**ATAC datasets need only `pca_50.txt`** — nothing else at all. Their expression
+is imputed rather than read, and their barcodes are derived from PCA row order if
+you don't supply them.
+
+**RNA datasets need all four files.** The matrix that goes into GRNBoost2 stacks
+the REAL RNA cells on top of the imputed ATAC cells, and those real rows come
+from `counts.mtx`. That is the one non-obvious requirement.
 
 **Already have PCs?** Point straight at them — nothing else is required for
 integration, because scSAGA consumes only the PCA file:

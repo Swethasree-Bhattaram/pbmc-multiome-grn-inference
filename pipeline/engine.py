@@ -64,8 +64,18 @@ class Dataset:
     def has_pca(self):
         return os.path.exists(self.pca)
 
+    def has_counts(self):
+        return bool(self.counts) and os.path.exists(self.counts)
+
+    def has_barcodes(self):
+        return bool(self.barcodes) and os.path.exists(self.barcodes)
+
+    def has_features(self):
+        return bool(self.features) and os.path.exists(self.features)
+
     def has_expression(self):
-        return all(p and os.path.exists(p) for p in (self.counts, self.barcodes, self.features))
+        """True when counts+barcodes+features are all present."""
+        return self.has_counts() and self.has_barcodes() and self.has_features()
 
     def n_cells(self):
         if self.barcodes and os.path.exists(self.barcodes):
@@ -88,7 +98,21 @@ class Dataset:
         return np.loadtxt(self.pca, comments='#', dtype=np.float32)
 
     def load_barcodes(self):
-        return read_lines(self.barcodes)
+        """Barcodes for this dataset.
+
+        An ATAC dataset may legitimately have no barcodes file -- only its PCA
+        is required.  In that case fall back to the PCA row order, so config
+        needs nothing but `pca:`.
+        """
+        if self.barcodes and os.path.exists(self.barcodes):
+            return read_lines(self.barcodes)
+        if self.has_pca():
+            n = np.loadtxt(self.pca, comments='#', dtype=np.float32).shape[0]
+            prefix = self.name or 'cell'
+            return [f'{prefix}_cell{i}' for i in range(n)]
+        raise SystemExit(
+            f'{self.name}: no barcodes file and no PCA to derive them from '
+            f'(barcodes={self.barcodes}, pca={self.pca})')
 
     def load_features(self):
         return read_lines(self.features)
@@ -140,15 +164,27 @@ def integrate(datasets, anchor, outdir, scsaga_repo, params=None, scsaga_python=
 
     import torch
     import sys
-    sys.path.insert(0, scsaga_repo)
+    # Prefer an installed scsaga package (pip install "git+https://github.com/
+    # AluruLab/scSAGA.git"); fall back to a source checkout if config/env points
+    # at one.  Either works -- the pipeline only needs `from scmint.scsaga import
+    # Saga`, so there is no required manual clone.
+    _saga = None
+    if scsaga_repo and os.path.isdir(scsaga_repo):
+        sys.path.insert(0, scsaga_repo)
     try:
-        from scmint.scsaga import Saga
-    except ImportError as e:
+        from scmint.scsaga import Saga as _saga
+    except ImportError:
+        _saga = None
+    if _saga is None:
         raise SystemExit(
-            f'cannot import scmint.scsaga from {scsaga_repo}: {e}\n'
-            f'Set scsaga_repo in config.yml to a checkout of the scSAGA repo.\n'
-            f'  git clone https://github.com/AluruLab/scSAGA.git'
+            'cannot import scmint.scsaga.\n'
+            'Install it (recommended):\n'
+            '  pip install "scsaga @ git+https://github.com/AluruLab/scSAGA.git"\n'
+            'or point config.yml at a source checkout:\n'
+            '  git clone https://github.com/AluruLab/scSAGA.git tools/scSAGA\n'
+            '  scsaga_repo: tools/scSAGA'
         )
+    Saga = _saga
 
     data_by_name = {}
     barcodes_by_name = {}
@@ -457,3 +493,100 @@ def evaluate(network_tsv, gt_files, outdir):
     with open(f'{outdir}/evaluation.json', 'w') as fh:
         json.dump({'edges': len(net), 'ground_truths': results}, fh, indent=2)
     return results
+
+
+# --------------------------------------------------------------------------- #
+# 5. Compare reference strategies
+# --------------------------------------------------------------------------- #
+def compare_strategies(exp_dir, references, root, ground_truth):
+    """Compare the networks from every reference strategy of one experiment.
+
+    An experiment with N RNA datasets produces N+1 strategies (one SCEMENT
+    combination, one per individual RNA dataset).  This writes
+
+        results/<exp>/comparison.md     human-readable table
+        results/<exp>/comparison.json   machine-readable, for plotting
+
+    covering, per strategy:
+      * network size
+      * edge overlap with every other strategy (top-100 shared + Jaccard)
+      * recovery against each ground truth, when ground truth is configured
+
+    Ground truth is optional: without it the comparison still reports network
+    size and pairwise overlap, which is what shows whether the reference choice
+    changes the inferred network at all.
+    """
+    import pandas as pd
+    out = {}
+    for strat in references:
+        net_path = f'{exp_dir}/{strat}/grn_tfonly_reg/network.tsv'
+        if not os.path.exists(net_path):
+            print(f'  [compare] skipping {strat}: no network.tsv', flush=True)
+            continue
+        net = pd.read_csv(net_path, sep='\t')
+        tfcol = 'TF' if 'TF' in net.columns else net.columns[0]
+        tgcol = 'target' if 'target' in net.columns else net.columns[1]
+        net = net.sort_values('importance', ascending=False).reset_index(drop=True)
+        edges = list(zip(net[tfcol], net[tgcol]))
+        gj = f'{exp_dir}/{strat}/grn_tfonly_reg/evaluation/evaluation.json'
+        ev = json.load(open(gj)) if os.path.exists(gj) else {}
+        out[strat] = {'edges': len(edges), 'edge_set': set(edges),
+                      'top100': set(edges[:100]),
+                      'eval': ev.get('ground_truths', {})}
+
+    if not out:
+        print('  [compare] no networks found to compare', flush=True)
+        return {}
+
+    names = list(out)
+
+    # ---- markdown ---------------------------------------------------------
+    lines = ['# Reference-strategy comparison', '',
+             f'Strategies: {", ".join(names)}', '']
+    lines += ['## Network size', '', '| strategy | edges |', '|---|---|']
+    for s in names:
+        lines.append(f'| {s} | {out[s]["edges"]:,} |')
+
+    lines += ['', '## Overlap between strategies (top-100 edges)', '',
+              '| A | B | shared | Jaccard |', '|---|---|---|---|']
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            inter = len(out[a]['top100'] & out[b]['top100'])
+            union = len(out[a]['top100'] | out[b]['top100'])
+            jac = inter / union if union else 0.0
+            lines.append(f'| {a} | {b} | {inter} | {jac:.3f} |')
+
+    gt_names = set()
+    for s in names:
+        gt_names.update(out[s]['eval'])
+    for g in sorted(gt_names):
+        lines += ['', f'## Recovery vs {g}', '',
+                  '| strategy | recovered | % |', '|---|---|---|']
+        for s in names:
+            r = out[s]['eval'].get(g)
+            if r:
+                lines.append(f'| {s} | {r["recovered"]}/{r["dedup"]} | {r["pct"]}% |')
+        best = max((out[s]['eval'].get(g, {}).get('pct', -1) for s in names),
+                   default=None)
+        if best is not None and best >= 0:
+            winners = [s for s in names
+                       if out[s]['eval'].get(g, {}).get('pct', -1) == best]
+            lines += ['', f'-> best: {", ".join(winners)} at {best}%']
+
+    with open(f'{exp_dir}/comparison.md', 'w') as fh:
+        fh.write('\n'.join(lines) + '\n')
+
+    # ---- json -------------------------------------------------------------
+    js = {'strategies': {s: {'edges': out[s]['edges'],
+                             'recovered': {g: out[s]['eval'].get(g, {}).get('recovered')
+                                           for g in sorted(gt_names)}}
+                         for s in names},
+          'overlap_top100': {f'{a}|{b}': len(out[a]['top100'] & out[b]['top100'])
+                             for i, a in enumerate(names)
+                             for b in names[i + 1:]}}
+    with open(f'{exp_dir}/comparison.json', 'w') as fh:
+        json.dump(js, fh, indent=2)
+
+    print(f'  [compare] wrote {exp_dir}/comparison.md and comparison.json',
+          flush=True)
+    return js

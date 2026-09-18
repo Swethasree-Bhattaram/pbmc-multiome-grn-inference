@@ -119,35 +119,16 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 cd "$PACE_ROOT"
 mkdir -p logs
 
-# --- optional: download + PCA -------------------------------------------------
-if [ "$SKIP_DOWNLOAD" != "1" ] && [ -x scripts/01_download_data.sh ]; then
-  echo; echo "### download raw data"
-  bash scripts/01_download_data.sh
-fi
-if [ "$SKIP_PREP" != "1" ] && [ -x scripts/prepare_data.sh ]; then
-  echo; echo "### prepare datasets including PCA (pca_50.txt per dataset)"
-  conda run --no-capture-output -n "$SC_ENV" bash scripts/prepare_data.sh
-fi
-
-# --- the pipeline -------------------------------------------------------------
-EXP_ARGS=(--all)
-if [ -n "$EXPERIMENTS" ]; then
-  EXP_ARGS=()
-  for e in $EXPERIMENTS; do EXP_ARGS+=(--experiment "$e"); done
-fi
-
-echo; echo "### validating config"
-conda run --no-capture-output -n "$SC_ENV" \
-  python pipeline/run.py --config "$CONFIG" --check "${EXP_ARGS[@]}"
-
-# stages.sh activates the right env per stage: scmint for integrate/impute/
-# evaluate, grn39 for GRNBoost2, and hands the scement interpreter to the
-# SCEMENT reference step.
-echo; echo "### running pipeline"
-SC_ENV="$SC_ENV" SCE_ENV="$SCE_ENV" GRN_ENV="$GRN_ENV" \
-PIPELINE_ROOT="$PACE_ROOT" SCAGA_REPO="$SCAGA_REPO" \
-GRN_WORKERS="$GRN_WORKERS" GRN_THREADS_PER_WORKER="$GRN_THREADS_PER_WORKER" \
-  bash pipeline/stages.sh "$CONFIG" "${EXP_ARGS[@]}"
+# --- environments + scSAGA + the whole pipeline -------------------------------
+# run_all.sh does: create envs -> install scSAGA -> validate -> integrate ->
+# impute -> GRN -> evaluate (+ comparison when >1 RNA dataset).
+SKIP_ENVS="${SKIP_ENVS:-1}"   # SLURM jobs shouldn't build envs; do that once first
+EXPERIMENTS="$EXPERIMENTS" \
+SKIP_ENVS="$SKIP_ENVS" \
+GRN_WORKERS="$GRN_WORKERS" \
+GRN_THREADS_PER_WORKER="$GRN_THREADS_PER_WORKER" \
+PIPELINE_ROOT="$PACE_ROOT" \
+  bash run_all.sh
 
 echo; echo "### done $(date -Is)"
 echo
