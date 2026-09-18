@@ -95,9 +95,11 @@ def check(cfg, datasets, experiment=None):
         status = 'OK' if not flags else ' | '.join(flags)
         print(f'  {e}: {" + ".join(names)}  anchor={spec["anchor"]}')
         print(f'      strategies: {", ".join(refs)}   -> {status}')
-    reg = resolve(cfg['_root'], cfg['grn']['regulators'])
-    tgt = resolve(cfg['_root'], cfg['grn']['targets'])
-    for label, p in [('regulators', reg), ('targets', tgt)]:
+    grn = cfg.get('grn') or {}
+    for label, key, default in [('regulators', 'regulators', 'data/tf_only.txt'),
+                                ('targets', 'targets', 'data/trrust_tf.txt')]:
+        rel = grn.get(key) or default
+        p = resolve(cfg['_root'], rel)
         print(f'  {label:11s} {p}  {"OK" if os.path.exists(p) else "MISSING"}')
         if not os.path.exists(p):
             ok = False
