@@ -124,6 +124,14 @@ grn:
 #   s_shared_cells: null   # cells assumed shared across modalities.
 #                          # default: the smallest dataset.  For paired multiome
 #                          # data you usually want the FULL cell count.
+#   gene_axis: union       # how RNA datasets from DIFFERENT reference builds
+#                          # are put on one gene axis before being stacked.
+#                          #   union      every gene seen anywhere; a dataset
+#                          #              missing a gene contributes zeros
+#                          #   intersect  only genes present in every dataset
+#                          # Default union, matching SCEMENT's own
+#                          # concat(..., merge='same').  Run compare_features.py
+#                          # to see the overlap first.
 
 # ------------------------------------------------------------ ground truth ---
 # TF,TARGET edge-list CSVs for scoring.  Any file that is missing is skipped

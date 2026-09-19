@@ -441,7 +441,7 @@ def _combined_reference(rna_datasets, counts_by_name=None, gene_axis='union'):
     return expr, list(axis), bcs
 
 
-def build_reference(ref_spec, rna_datasets, integ_dir):
+def build_reference(ref_spec, rna_datasets, integ_dir, gene_axis='union'):
     """-> (expr genes x cells, H cells x d, barcodes, genes) for one strategy.
 
     ref_spec is {'dataset': name} or {'combine': ...}.
@@ -459,7 +459,7 @@ def build_reference(ref_spec, rna_datasets, integ_dir):
               flush=True)
         return expr, H, d.load_barcodes(), genes
 
-    expr, genes, bc = _combined_reference(rna_datasets)
+    expr, genes, bc = _combined_reference(rna_datasets, gene_axis=gene_axis)
     H = np.vstack([np.load(f'{integ_dir}/aligned_{n}.npy')
                    for n in rna_datasets]).astype(np.float32)
     return expr, H, bc, genes
@@ -740,7 +740,9 @@ def _run_strategy(cfg, datasets, rna, rna_expr, rna_genes, H, order, sizes,
     if 'impute' in steps:
         print('--- reference + reverse-imputeKNN')
         ref_expr, ref_H, ref_bc, genes = build_reference(
-            ref_spec, rna, integ_dir)
+            ref_spec, rna, integ_dir,
+            gene_axis=(cfg.get('integration') or {}).get('gene_axis')
+            or 'union')
         q_bc = {q: datasets[q].load_barcodes() for q in queries}
         imputed, q_bc_flat = impute(H, order, sizes, ref_expr, ref_H,
                                     queries, sdir, q_bc)

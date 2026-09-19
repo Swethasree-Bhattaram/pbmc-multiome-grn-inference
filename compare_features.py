@@ -135,18 +135,27 @@ def main():
 
     print('\n' + '=' * 68)
     if verdicts == {'same'}:
-        print('All feature lists identical -> `combine` should work.')
+        print('All feature lists identical.')
     elif 'geneset' in verdicts:
-        print('Some datasets use different gene sets. `combine` CANNOT stack '
-              'them as-is.\nOptions:\n'
-              '  1. drop the combined strategy from that experiment (keep the\n'
-              '     per-dataset strategies), or\n'
-              '  2. re-derive the datasets from one shared 10x reference, or\n'
-              '  3. subset every dataset to the shared genes, in a fixed order\n'
-              '     (changes the gene set the reference covers).')
+        print('The datasets differ in gene content -- expected for RNA-seq from\n'
+              'different 10x reference builds.  This is NOT a blocker: run.py\n'
+              'puts every dataset on one shared gene axis before stacking\n'
+              '(shared_gene_axis), so the pipeline handles it.\n\n'
+              'The axis is chosen per strategy and reported in the run log:\n'
+              '  combined     -> axis over ALL RNA datasets of the experiment\n'
+              '  per-dataset  -> axis = that reference dataset\n\n'
+              'union      every gene seen anywhere; a dataset missing a gene\n'
+              '           contributes zeros there.  Widest coverage, matches\n'
+              '           SCEMENT\'s own concat(..., merge="same").\n'
+              'intersect  only genes in EVERY dataset; no invented zeros.\n\n'
+              'Set it in config.yml if you want intersect:\n'
+              '  integration: {gene_axis: intersect}\n\n'
+              'Watch the run log for how many regulators/targets the axis cost:\n'
+              '  [!] N targets absent from the gene axis: [...]')
     else:
         print('All lists share the same genes but in different orders.\n'
-              'Reordering each dataset to the first list is an exact fix.')
+              'Reordering each dataset to the first list is an exact fix,\n'
+              'though run.py now aligns the axis itself, so it is not required.')
     return 0
 
 
