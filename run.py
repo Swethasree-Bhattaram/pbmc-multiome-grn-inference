@@ -276,9 +276,77 @@ def integrate(datasets, anchor, outdir, params):
 
 
 # --------------------------------------------------------------------------- #
-# reference: single RNA dataset, or every RNA dataset combined
+# gene-axis alignment
 # --------------------------------------------------------------------------- #
-def _combined_reference(rna_datasets, counts_by_name=None):
+def shared_gene_axis(gene_lists, mode='union'):
+    """One gene ordering covering several datasets.
+
+    SCEMENT (like ComBat generally) needs every dataset on the SAME gene axis
+    before the counts can be stacked.  Its own evaluation pipelines do this with
+    AnnData's `concat(..., merge='same')`, i.e. a union, and ship both variants:
+
+        combat_union.json / combat_intersect.json
+
+    union     every gene seen in any dataset, in first-seen order.  A dataset
+              missing a gene contributes zeros there.  Keeps the widest gene
+              coverage; matches merge='same'.
+    intersect only genes present in ALL datasets.  No invented zeros, but a
+              smaller gene set.
+    """
+    if mode not in ('union', 'intersect'):
+        raise SystemExit(f'gene axis mode must be union|intersect, got {mode!r}')
+    if mode == 'union':
+        seen, out = set(), []
+        for genes in gene_lists:
+            for g in genes:
+                if g not in seen:
+                    seen.add(g)
+                    out.append(g)
+        return out
+    common = set(gene_lists[0])
+    for genes in gene_lists[1:]:
+        common &= set(genes)
+    return [g for g in gene_lists[0] if g in common]
+
+
+def reindex_expression(expr, src_genes, dst_genes):
+    """genes x cells -> dst_genes x cells.
+
+    Genes present in dst_genes but absent from src_genes come out as zeros, so
+    datasets measured against different references can share one axis.
+    """
+    out = np.zeros((len(dst_genes), expr.shape[1]), dtype=np.float32)
+    pos = {g: i for i, g in enumerate(src_genes)}
+    dst_at, src_at = [], []
+    for j, g in enumerate(dst_genes):
+        i = pos.get(g)
+        if i is not None:
+            dst_at.append(j)
+            src_at.append(i)
+    if dst_at:
+        out[dst_at, :] = expr[src_at, :]
+    return out
+
+
+def reindex_counts_columns(X, src_genes, dst_genes):
+    """cells x genes sparse -> cells x dst_genes, gene-aligned (zeros added)."""
+    pos = {g: i for i, g in enumerate(src_genes)}
+    dst_at, src_at = [], []
+    for j, g in enumerate(dst_genes):
+        i = pos.get(g)
+        if i is not None:
+            dst_at.append(j)
+            src_at.append(i)
+    if not dst_at:
+        return sp.csr_matrix((X.shape[0], len(dst_genes)), dtype=X.dtype)
+    sub = X[:, src_at].tocoo()
+    col = np.asarray([dst_at[c] for c in sub.col], dtype=np.int32)
+    return sp.csr_matrix((sub.data, (sub.row, col)),
+                         shape=(X.shape[0], len(dst_genes)), dtype=X.dtype)
+
+
+
+def _combined_reference(rna_datasets, counts_by_name=None, gene_axis='union'):
     """ComBat-combine several RNA datasets into one batch-corrected reference.
 
     genes x cells, clipped at 0.  Uses the vendored SCEMENT sct_sparse (see
@@ -286,6 +354,11 @@ def _combined_reference(rna_datasets, counts_by_name=None):
     scanpy's pp.combat is a DIFFERENT implementation: on real PBMC counts it
     differs by mean |delta| 9.5e-4, with 10.6% of nonzeros off by more than
     1e-3 -- so switching implementation would change published results.
+
+    Datasets measured against different references do NOT need identical feature
+    lists: they are first put on one shared gene axis (`gene_axis`), exactly as
+    SCEMENT's own evaluation pipelines do with AnnData's
+    `concat(..., merge='same')`.  Genes a dataset lacks contribute zeros.
     """
     import anndata as ad
     import pandas as pd
@@ -296,16 +369,20 @@ def _combined_reference(rna_datasets, counts_by_name=None):
     if len(names) < 2:
         raise SystemExit(f"'combine' needs at least 2 RNA datasets, got {names}")
 
-    blocks, genes_ref, bcs, batches = [], None, [], []
-    for n in names:
+    # ---- put every dataset on one gene axis ------------------------------
+    gene_lists = [rna_datasets[n].load_features() for n in names]
+    axis = shared_gene_axis(gene_lists, gene_axis)
+    if not axis:
+        raise SystemExit("'combine' found no genes in common across "
+                         f"{names} (gene_axis={gene_axis})")
+    dropped = [len(set(g) - set(axis)) for g in gene_lists]
+    print(f'  [ref] gene axis: {gene_axis}, {len(axis)} genes '
+          f'(dataset sizes {[len(g) for g in gene_lists]}, '
+          f'dropped per dataset {dropped})', flush=True)
+
+    blocks, bcs, batches = [], [], []
+    for n, genes in zip(names, gene_lists):
         d = rna_datasets[n]
-        genes = d.load_features()
-        if genes_ref is None:
-            genes_ref = genes
-        elif genes != genes_ref:
-            raise SystemExit(
-                f'combine needs identical feature ordering; {n} differs from '
-                f'{names[0]}.  Reference datasets must share a feature list.')
         X = scipy.io.mmread(d.counts).tocsr()             # cells x genes
         if X.shape[1] != len(genes):
             raise SystemExit(f'{n}: counts has {X.shape[1]} columns but '
@@ -313,10 +390,12 @@ def _combined_reference(rna_datasets, counts_by_name=None):
         bc = d.load_barcodes()
         if len(bc) != X.shape[0]:
             raise SystemExit(f'{n}: {X.shape[0]} count rows but {len(bc)} barcodes')
-        blocks.append(X.astype(np.float32))
+        Xa = reindex_counts_columns(X.astype(np.float32), genes, axis)
+        blocks.append(Xa.tocsr())
         bcs.extend(bc)
         batches.extend([n] * X.shape[0])
-        print(f'  [ref] {n}: {X.shape[0]} cells x {X.shape[1]} genes', flush=True)
+        print(f'  [ref] {n}: {X.shape[0]} cells x {len(genes)} genes '
+              f'-> {Xa.shape[1]} on the shared axis', flush=True)
 
     X = sp.vstack(blocks).tocsr()
     adata = ad.AnnData(X=X, obs=pd.DataFrame({'batch': pd.Categorical(batches)}))
@@ -325,7 +404,7 @@ def _combined_reference(rna_datasets, counts_by_name=None):
     corrected = np.clip(np.asarray(scement.sct_sparse(adata, key='batch',
                                                       inplace=False)), 0, None)
     expr = np.ascontiguousarray(corrected.T, dtype=np.float32)   # genes x cells
-    return expr, list(genes_ref), bcs
+    return expr, list(axis), bcs
 
 
 def build_reference(ref_spec, rna_datasets, integ_dir):
@@ -424,8 +503,20 @@ def run_grn(expr_all, genes, reg_file, tgt_file, outdir, n_workers=8,
     cols = list(dict.fromkeys(target_genes + present_tfs))
     if max_columns:
         cols = cols[:max_columns]
-    print(f'  regulators present {len(present_tfs)}, targets present '
-          f'{len(target_genes)}, union columns {len(cols)}', flush=True)
+    print(f'  regulators present {len(present_tfs)}/{len(regs)}, targets present '
+          f'{len(target_genes)}/{len(tgts)}, union columns {len(cols)}',
+          flush=True)
+    # Report what the gene axis cost us.  The matrix axis comes from the
+    # reference dataset, so a target or regulator that exists in a dataset but
+    # not on that axis is silently unusable -- say so rather than let it vanish.
+    absent_t = sorted(tgts - set(genes))
+    absent_r = sorted(regs - set(genes))
+    if absent_t:
+        print(f'  [!] {len(absent_t)} targets absent from the gene axis: '
+              f'{absent_t[:8]}{" ..." if len(absent_t) > 8 else ""}', flush=True)
+    if absent_r:
+        print(f'  [!] {len(absent_r)} regulators absent from the gene axis: '
+              f'{absent_r[:8]}{" ..." if len(absent_r) > 8 else ""}', flush=True)
     print(f'  NOTE: one regression per COLUMN -> {len(cols)} regressions '
           f'(regulator columns are fitted too)', flush=True)
     if not present_tfs:
@@ -601,8 +692,93 @@ def compare_strategies(exp_dir, references):
 
 
 # --------------------------------------------------------------------------- #
-# one experiment
+# one strategy: reference -> impute -> grn   (isolated per strategy)
 # --------------------------------------------------------------------------- #
+def _run_strategy(cfg, datasets, rna, rna_expr, rna_genes, H, order, sizes,
+                  queries, integ_dir, exp_dir, sdir, grn_dir,
+                  all_path, strat, ref_spec, steps, args, root):
+    """Build one reference strategy's all-cells matrix, then its network.
+
+    Extracted from run_experiment so the caller can isolate failures: raising a
+    SystemExit here only loses THIS strategy, not the whole experiment.
+    """
+    genes = None
+    if 'impute' in steps:
+        print('--- reference + reverse-imputeKNN')
+        ref_expr, ref_H, ref_bc, genes = build_reference(
+            ref_spec, rna, integ_dir)
+        q_bc = {q: datasets[q].load_barcodes() for q in queries}
+        imputed, q_bc_flat = impute(H, order, sizes, ref_expr, ref_H,
+                                    queries, sdir, q_bc)
+        np.save(f'{sdir}/genes.npy', np.array(genes))
+        with open(f'{sdir}/genes.txt', 'w') as fh:
+            fh.write('\n'.join(genes) + '\n')
+
+        # all-cells rows: every real RNA cell in H order, then the queries.
+        # The reference choice only decides what is propagated to ATAC.
+        #
+        # Every RNA dataset is put on the REFERENCE's gene axis before stacking.
+        # A dataset from a different 10x reference has a different gene list,
+        # and stacking it unaligned would silently label its rows with the
+        # wrong genes (row j would hold a different gene in each block).
+        rna_order = [o for o in order if o in rna]
+        blocks = []
+        for n in rna_order:
+            src_genes = rna_genes[n]
+            e = rna_expr[n]
+            if src_genes == genes:
+                blocks.append(e.T)
+            else:
+                n_absent = len(set(genes) - set(src_genes))
+                if n_absent:
+                    print(f'    [ref] {n}: {n_absent} genes of the reference '
+                          f'axis absent -> zero-filled', flush=True)
+                blocks.append(reindex_expression(e, src_genes, genes).T)
+        real = np.vstack(blocks).astype(np.float32)
+        all_expr = np.vstack([real, imputed.T]).astype(np.float32)
+        all_bc = [b for n in rna_order for b in datasets[n].load_barcodes()]
+        all_bc += q_bc_flat
+        np.save(all_path, all_expr)
+        with open(f'{sdir}/all_cells_barcodes.txt', 'w') as fh:
+            fh.write('\n'.join(all_bc) + '\n')
+        with open(f'{sdir}/n_cells.txt', 'w') as fh:
+            fh.write(str(all_expr.shape[0]))
+        print(f'    all-cells matrix {all_expr.shape} (rows: '
+              f'{len(all_bc) - len(q_bc_flat)} real RNA + '
+              f'{len(q_bc_flat)} imputed ATAC)')
+    elif {'grn', 'evaluate'} & set(steps):
+        if not os.path.exists(all_path):
+            raise SystemExit(f'no {all_path}; run --only impute first')
+        genes = read_lines(f'{sdir}/genes.txt')
+        print(f'--- reuse all-cells matrix '
+              f'{np.load(all_path, mmap_mode="r").shape}')
+
+    if 'grn' in steps:
+        if genes is None:
+            raise SystemExit(f'no genes list for {strat}; '
+                             f'run --only impute first')
+        print(f'--- Arboreto GRNBoost2 ({args.workers} workers)')
+        g = cfg.get('grn') or {}
+        run_grn(all_path, genes,
+                abspath(root, g.get('regulators') or 'data/tf_only.txt'),
+                abspath(root, g.get('targets') or 'data/trrust_tf.txt'),
+                grn_dir, n_workers=args.workers,
+                threads_per_worker=args.threads_per_worker,
+                seed=args.seed, scheduler=args.scheduler,
+                max_columns=args.max_columns)
+
+    net_path = f'{grn_dir}/network.tsv'
+    if 'evaluate' in steps:
+        if os.path.exists(net_path):
+            print('--- evaluation')
+            gt = {k: abspath(root, v)
+                  for k, v in (cfg.get('ground_truth') or {}).items()}
+            evaluate(net_path, gt, f'{grn_dir}/evaluation')
+        else:
+            print(f'    [!] no {net_path} -- evaluation SKIPPED for '
+                  f'strategy {strat}', flush=True)
+
+
 def run_experiment(cfg, datasets, exp_name, steps, args):
     spec = cfg['experiments'][exp_name]
     names = spec['datasets']
@@ -648,10 +824,13 @@ def run_experiment(cfg, datasets, exp_name, steps, args):
     # real RNA expression, loaded once per experiment (these rows are the top
     # of the all-cells matrix, whichever reference strategy is used)
     rna_expr = {}
+    rna_genes = {}
     for n, d in rna.items():
         genes_n = d.load_features()
+        rna_genes[n] = genes_n
         rna_expr[n] = d.load_expression(len(genes_n))
 
+    failed = {}
     missing_networks = []
     for strat, ref_spec in references.items():
         sdir = f'{exp_dir}/{strat}'
@@ -661,72 +840,35 @@ def run_experiment(cfg, datasets, exp_name, steps, args):
         genes = None
         print(f'\n===== strategy {strat}: {ref_spec}')
 
-        if 'impute' in steps:
-            print('--- reference + reverse-imputeKNN')
-            ref_expr, ref_H, ref_bc, genes = build_reference(
-                ref_spec, rna, integ_dir)
-            q_bc = {q: datasets[q].load_barcodes() for q in queries}
-            imputed, q_bc_flat = impute(H, order, sizes, ref_expr, ref_H,
-                                        queries, sdir, q_bc)
-            np.save(f'{sdir}/genes.npy', np.array(genes))
-            with open(f'{sdir}/genes.txt', 'w') as fh:
-                fh.write('\n'.join(genes) + '\n')
+        # Each strategy is independent: the reference choice is the whole point
+        # of the experiment, so one reference that cannot be built (e.g. a
+        # 'combine' whose datasets do not share a feature list) must not take
+        # the other strategies down with it.  build_reference() reports its
+        # problems as SystemExit, which is NOT an Exception subclass, so both
+        # are caught here.
+        try:
+            _run_strategy(cfg, datasets, rna, rna_expr, rna_genes, H, order,
+                          sizes, queries, integ_dir, exp_dir, sdir, grn_dir,
+                          all_path, strat, ref_spec, steps, args, root)
+        except (Exception, SystemExit) as exc:              # noqa: BLE001
+            print(f'    [!] strategy {strat} FAILED: {exc}', flush=True)
+            failed[strat] = str(exc)
+            continue
 
-            # all-cells rows: every real RNA cell in H order, then the queries.
-            # The reference choice only decides what is propagated to ATAC.
-            rna_order = [o for o in order if o in rna]
-            real = np.vstack([rna_expr[n].T for n in rna_order]).astype(np.float32)
-            all_expr = np.vstack([real, imputed.T]).astype(np.float32)
-            all_bc = [b for n in rna_order for b in datasets[n].load_barcodes()]
-            all_bc += q_bc_flat
-            np.save(all_path, all_expr)
-            with open(f'{sdir}/all_cells_barcodes.txt', 'w') as fh:
-                fh.write('\n'.join(all_bc) + '\n')
-            with open(f'{sdir}/n_cells.txt', 'w') as fh:
-                fh.write(str(all_expr.shape[0]))
-            print(f'    all-cells matrix {all_expr.shape} (rows: '
-                  f'{len(all_bc) - len(q_bc_flat)} real RNA + '
-                  f'{len(q_bc_flat)} imputed ATAC)')
-        elif {'grn', 'evaluate'} & set(steps):
-            if not os.path.exists(all_path):
-                raise SystemExit(f'no {all_path}; run --only impute first')
-            genes = read_lines(f'{sdir}/genes.txt')
-            print(f'--- reuse all-cells matrix '
-                  f'{np.load(all_path, mmap_mode="r").shape}')
+        if 'evaluate' in steps and not os.path.exists(f'{grn_dir}/network.tsv'):
+            missing_networks.append(strat)
 
-        if 'grn' in steps:
-            if genes is None:
-                raise SystemExit(f'no genes list for {strat}; '
-                                 f'run --only impute first')
-            print(f'--- Arboreto GRNBoost2 ({args.workers} workers)')
-            g = cfg.get('grn') or {}
-            run_grn(all_path, genes,
-                    abspath(root, g.get('regulators') or 'data/tf_only.txt'),
-                    abspath(root, g.get('targets') or 'data/trrust_tf.txt'),
-                    grn_dir, n_workers=args.workers,
-                    threads_per_worker=args.threads_per_worker,
-                    seed=args.seed, scheduler=args.scheduler,
-                    max_columns=args.max_columns)
-
-        net_path = f'{grn_dir}/network.tsv'
-        if 'evaluate' in steps:
-            if os.path.exists(net_path):
-                print('--- evaluation')
-                gt = {k: abspath(root, v)
-                      for k, v in (cfg.get('ground_truth') or {}).items()}
-                evaluate(net_path, gt, f'{grn_dir}/evaluation')
-            else:
-                print(f'    [!] no {net_path} -- evaluation SKIPPED for '
-                      f'strategy {strat}', flush=True)
-                missing_networks.append(strat)
-
+    if failed:
+        print(f'\n{exp_name}: {len(failed)} strategy(ies) produced no results:')
+        for s, why in failed.items():
+            print(f'  - {s}: {why}')
     if missing_networks:
         raise SystemExit(
             f'{exp_name}: no network.tsv for {missing_networks}; the run is '
             f'incomplete (impute or grn did not produce a network)')
 
     if len(references) > 1:
-        compare_strategies(exp_dir, references)
+        compare_strategies(exp_dir, [s for s in references if s not in failed])
 
 
 # --------------------------------------------------------------------------- #
