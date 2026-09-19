@@ -24,8 +24,27 @@ import sys
 
 
 def read_features(path):
+    """Feature file -> gene SYMBOLS.
+
+    Cell Ranger feature files come in three shapes; only the symbol field can
+    ever match a gene list, so always take column 2 when present:
+
+        SYMBOL
+        ENSG...<TAB>SYMBOL
+        ENSG...<TAB>SYMBOL<TAB>Type      ('Gene Expression' etc.)
+
+    Comparing raw lines instead reports 'shared genes: 0' for files that in
+    fact share every gene but use different formats.
+    """
+    out = []
     with open(path) as fh:
-        return [l.strip() for l in fh if l.strip()]
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line.strip():
+                continue
+            parts = line.split('\t') if '\t' in line else line.split()
+            out.append(parts[1] if len(parts) >= 2 else parts[0])
+    return out
 
 
 def report(ref_path, ref, other_path, other):

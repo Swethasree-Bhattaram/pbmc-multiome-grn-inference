@@ -53,6 +53,34 @@ def read_lines(path):
         return [l.strip() for l in fh if l.strip()]
 
 
+def feature_symbols(path):
+    """Feature file -> gene symbols (one per feature, in file order).
+
+    Cell Ranger writes feature lists in three shapes and all three show up in
+    real data:
+
+        SYMBOL                                  old cellranger mtx dirs
+        ENSG00000000003<TAB>SYMBOL              mtx gene_id/gene_name
+        ENSG00000000003<TAB>SYMBOL<TAB>Type     features.tsv.gz, cellranger >= 3
+                                                (the Type column is
+                                                 'Gene Expression' for RNA)
+
+    Gene lists (tf_only.txt, trrust_tf.txt) hold BARE SYMBOLS, so the symbol
+    field is the only one that can ever match.  Using the raw line instead
+    matches nothing for the 2- and 3-column forms, which makes every regulator
+    and target look absent.
+    """
+    out = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.rstrip('\n')
+            if not line.strip():
+                continue
+            parts = line.split('\t') if '\t' in line else line.split()
+            out.append(parts[1] if len(parts) >= 2 else parts[0])
+    return out
+
+
 def abspath(root, path):
     return path if os.path.isabs(path) else os.path.join(root, path)
 
@@ -176,10 +204,16 @@ class Dataset:
         return problems
 
     def load_features(self):
+        """Gene SYMBOLS, in file order (see feature_symbols).
+
+        These names index the matrix columns and are matched against
+        tf_only.txt / trrust_tf.txt, so they must be bare symbols -- a feature
+        file with gene_id/type columns would otherwise match nothing.
+        """
         if not self.features or not os.path.exists(self.features):
             raise SystemExit(f'{self.name}: needs "features" to be used as an '
                              f'RNA reference')
-        return read_lines(self.features)
+        return feature_symbols(self.features)
 
     def load_expression(self, n_features=None):
         """counts.mtx (cells x features) -> genes x cells, log1p(CPM/1e4).
