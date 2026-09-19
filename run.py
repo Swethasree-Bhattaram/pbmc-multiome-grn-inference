@@ -153,8 +153,14 @@ class Dataset:
         A dataset is only meaningful if the PCA rows, the counts rows and the
         barcodes all refer to the SAME cells in the SAME order.  Getting this
         wrong silently misaligns the integration, so it is worth checking.
+
+        ATAC datasets are exempt: their expression is imputed, so counts are
+        never read and their orientation is irrelevant.  Flagging them here
+        would report a problem the pipeline cannot actually be affected by.
         """
         problems = []
+        if not self.needs_expression():
+            return problems
         if not (self.has_pca() and self.has_expression()):
             return problems
         rows, cols, _ = self.mtx_shape()
@@ -646,6 +652,7 @@ def run_experiment(cfg, datasets, exp_name, steps, args):
         genes_n = d.load_features()
         rna_expr[n] = d.load_expression(len(genes_n))
 
+    missing_networks = []
     for strat, ref_spec in references.items():
         sdir = f'{exp_dir}/{strat}'
         grn_dir = f'{sdir}/grn'
@@ -701,11 +708,22 @@ def run_experiment(cfg, datasets, exp_name, steps, args):
                     seed=args.seed, scheduler=args.scheduler,
                     max_columns=args.max_columns)
 
-        if 'evaluate' in steps and os.path.exists(f'{grn_dir}/network.tsv'):
-            print('--- evaluation')
-            gt = {k: abspath(root, v)
-                  for k, v in (cfg.get('ground_truth') or {}).items()}
-            evaluate(f'{grn_dir}/network.tsv', gt, f'{grn_dir}/evaluation')
+        net_path = f'{grn_dir}/network.tsv'
+        if 'evaluate' in steps:
+            if os.path.exists(net_path):
+                print('--- evaluation')
+                gt = {k: abspath(root, v)
+                      for k, v in (cfg.get('ground_truth') or {}).items()}
+                evaluate(net_path, gt, f'{grn_dir}/evaluation')
+            else:
+                print(f'    [!] no {net_path} -- evaluation SKIPPED for '
+                      f'strategy {strat}', flush=True)
+                missing_networks.append(strat)
+
+    if missing_networks:
+        raise SystemExit(
+            f'{exp_name}: no network.tsv for {missing_networks}; the run is '
+            f'incomplete (impute or grn did not produce a network)')
 
     if len(references) > 1:
         compare_strategies(exp_dir, references)
