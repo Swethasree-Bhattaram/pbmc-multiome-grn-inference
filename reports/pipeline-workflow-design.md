@@ -350,6 +350,22 @@ That last point is the reason the checks live upstream. A gradient-boosted tree 
 pattern that exists, including the pattern "these 20 cells are a smoothed average", and it
 reports no error while doing so.
 
+### The files, and which of them is truth
+
+Only the last two rows are ground truth, and they must never reach the inference step.
+
+| File | What it is | Used for |
+|---|---|---|
+| `data/tf_only.txt` (829 symbols) | human transcription factors — the candidate **regulators**. Only these can appear on the left of an edge. | step 3 input |
+| `data/trrust_tf.txt` (2,862 symbols) | every gene that acts as a regulator somewhere in TRRUST. A larger candidate set, and **not** a clean TF list: most of its entries are not transcription factors. | optional input |
+| the matrix columns | the candidate **targets**, decided by the target rule below | step 3 input |
+| `data/ground_truth/PBMC-TRRUST.csv` (9,720 `TF,TARGET` rows, no score) | a binary edge set for these cells | **evaluation only** |
+| `data/ground_truth/PBMC-Blood.csv` (98,338 `TF,TARGET` rows) | the same, from whole blood | **evaluation only** |
+
+The rule that follows from this table: nothing from `data/ground_truth/` may be read by the
+inference step. It is a truth set, not a prior. If it leaks in — even indirectly, for example
+by choosing the target genes to favour known edges — the evaluation is circular.
+
 ### Input
 
 | Item | Form | Why it is needed |
@@ -367,6 +383,16 @@ high-throughput single-cell transcriptomics data", *Nat Comput Sci* 2024
 (10.1038/s43588-024-00597-5), argues that single-cell-level networks are poorly
 reproducible and that population-level comparison is the defensible unit.
 
+### Five phrases in step 3
+
+| Phrase | What it actually is |
+|---|---|
+| **regulators** ("TF list") | the genes allowed on the **left** of an edge. In this repo that is `tf_only.txt`. A regulator that is not a column of the matrix is dropped silently, so the list and the matrix have to be checked against each other once. |
+| **target rule** | the rule that decides which genes are **columns of the matrix handed to GRNBoost2** — and therefore which genes get their own regression fitted. It matters because the public `grnboost2()` call takes no target list: it fits one regression per column, so the column set *is* the target list. A rule looks like "genes present in the matrix that are either a top-2000 highly variable gene or a TRRUST regulator", and its count is recorded. It is a scope-and-cost decision, not a claim about biology, and changing it changes every downstream edge count. |
+| **cells grouped by cell type** | the **rows** of `X`, split by a barcode → cell-type table. One network is then inferred per group. The alternative is pseudobulk: average the cells within each cell type (optionally per donor) into a few hundred pseudo-cells and infer on those. |
+| **importance** (the score) | how much predictive gain that TF contributed across all the trees that predict that target. It is a **ranking** score: not a p-value, not a correlation, and unsigned — it says nothing about activation versus repression. Compare importances within one run, not between runs or methods. |
+| **three seeds** | GRNBoost2 is stochastic: each split considers only 10% of the regulators (`max_features=0.1`) and each tree sees 90% of the cells (`subsample=0.9`). Two runs on identical input therefore give different networks. Three seeds means running the same pipeline three times and measuring the overlap of the top-10k edges. That overlap is the noise floor; anything smaller than it is not a result. |
+
 ### Output
 
 | Item | Form | Notes |
@@ -375,6 +401,12 @@ reproducible and that population-level comparison is the defensible unit.
 | `run_info.txt` | cells, columns, seeds, workers, software versions | required for comparison |
 | three seeds | the same run repeated | so seed-to-seed noise is measurable |
 | top-N cap | e.g. top 50,000 edges by weight | the standard evaluation range |
+
+The network is stored as an **edge list** — one row per link. That is the network, just not in
+matrix form. The equivalent matrix is regulators × genes (2,827 × 4,389 ≈ 12.4 million cells
+in this project), almost entirely zeros, so the edge list is both smaller and the form every
+metric needs: AUPRC and early precision both take a ranked list of pairs. Pivot to a matrix
+only for plotting.
 
 Three seeds are not ceremony. The multimodal-GRN benchmark (GRETA) found these networks
 highly sensitive to random seeds and to swapping a single pipeline step. If seed-to-seed
