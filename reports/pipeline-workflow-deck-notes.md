@@ -147,49 +147,51 @@ Two measurements of the same cells must land on one shared map
 
 ---
 
-## Slide 5 — Step 1 — integration methods: what each one hands you
+## Slide 5 — Step 1 — integration methods: what each one gives you
 
 **On the slide**
 
-They do not all return the same kind of object — the right-hand column is what step 2 can consume
+Aligned embedding, latent, joint latent, shared factors — different words for the same object
 
-| Method | What you get out | Needs a shared feature axis? | Citation |
-|---|---|---|---|
-| scSAGA | transport plan (cell-to-cell coupling) + joint embedding H, cells × 30, in the anchor's frame; plus a 2D projection | no — works on peaks or gene activity | Aluru lab; bioRxiv 2026 |
-| Pamona | partial Gromov–Wasserstein coupling (probabilistic cell matches) + a common low-dim space; also flags shared vs dataset-specific cells | no | Cao et al., Bioinformatics 2021 |
-| SCOT | Gromov–Wasserstein coupling + barycentric-projected features, i.e. one aligned matrix per dataset | no | Demetci et al., RECOMB 2020 |
-| UnionCom | aligned per-dataset embeddings + a cell matching — no single joint latent | no | Cao et al., Bioinformatics 2020 |
-| LIGER (rliger) | iNMF shared factor loadings H (cells × k) + per-dataset W (features × k); aligned matrix and clusters; imputeKNN | YES — so ATAC must be gene activity | Welch et al., Cell 2019 |
-| Seurat v5 | anchor-corrected / projected reduction; TransferData gives anchor weights → predicted expression; WNN graph across modalities | YES, and directional: RNA reference → ATAC query | Hao et al., Cell 2021 |
-| Harmony | a corrected PCA embedding only — no gene-level output | YES | Korsunsky et al., Nat Methods 2019 |
-| scVI / scANVI | latent z + denoised, normalised expression | YES (or trained on multiome) | Lopez et al., Nat Methods 2018 |
+| Method | What you get out | Citation |
+|---|---|---|
+| scSAGA | joint embedding (cells × 30) + the matching it was computed from | Aluru lab; bioRxiv 2026 |
+| Pamona | joint embedding + matching; also labels cells shared vs dataset-specific | Cao et al., Bioinformatics 2021 |
+| SCOT | matching + a joint embedding per dataset | Demetci et al., RECOMB 2020 |
+| LIGER | joint embedding (cells × k) + per-dataset gene loadings (genes × k); ships its own imputeKNN | Welch et al., Cell 2019 |
+| Seurat v5 | joint embedding; can also produce predicted expression for the other modality | Hao et al., Cell 2021 |
+| Harmony | joint embedding; nothing else | Korsunsky et al., Nat Methods 2019 |
+
+EVERY OUTPUT IS ONE OF THREE  a JOINT EMBEDDING (k numbers per cell — what step 2 needs)  ·  a MATCHING (cell-to-cell, convert it first)  ·  an IMPUTED MATRIX (genes × cells — step 2 is already done)
+
+LIGER, Seurat and Harmony need RNA and ATAC on the same feature axis, so ATAC must enter as gene activity. scSAGA, Pamona and SCOT do not.
 
 **Speaker notes**
 
-> The point of this table is the right-hand side: these methods do not all return the same kind of object. scSAGA hands you a transport plan plus a 30-dimensional joint embedding; Pamona hands you a partial Gromov-Wasserstein coupling plus a common low-dimensional space and a shared-versus-specific cell call; SCOT hands you a coupling plus one projected matrix per dataset; UnionCom gives aligned embeddings but no single joint latent. LIGER gives shared factor loadings, which is what its own imputeKNN was designed around, but it needs one common feature axis, so ATAC has to arrive as gene activity. Seurat's cross-modality path is directional, RNA reference to ATAC query. Harmony and scVI give you an embedding and denoised expression respectively, and both need shared features. Step 2 only needs one thing: a cells by d array whose blocks are commensurate. So the question is not which method is best in general, it is which method produces an object that step 2 can use.
+> The point of this table is the middle column. These methods do not all return the same kind of object, and the papers use different words for it - aligned embedding, latent, joint latent, shared factors, corrected reduction. They all mean the same thing: k numbers per cell, every dataset in the same space, so distances between cells are meaningful. We call that a joint embedding. Everything reduces to three outputs: a joint embedding, which step 2 uses directly; a matching, which is a cell-to-cell probability matrix and has to be turned into a neighbour list or an embedding first; or an imputed expression matrix, in which case step 2 is already done. scSAGA gives a joint embedding of 30 dimensions plus the matching it came from. Pamona gives both, and also labels cells as shared or dataset-specific. SCOT gives a matching plus one embedding per dataset. LIGER gives a joint embedding plus per-dataset gene loadings. Seurat gives a joint embedding and can also predict the other modality. Harmony gives an embedding and nothing else. One requirement is not in the table: LIGER, Seurat and Harmony need RNA and ATAC on the same feature axis, so ATAC must arrive as gene activity, whereas the transport methods do not care.
 
 ---
 
-## Slide 6 — Step 1 — integration methods: special-purpose and recent
+## Slide 6 — Step 1 — integration methods: multiome-native and recent
 
 **On the slide**
 
-Multiome-native models, and the 2025–26 generation
+Same three kinds of output; these differ in what prior they use
 
-| Method | What you get out | Needs a shared feature axis? | Citation |
-|---|---|---|---|
-| MultiVI | joint latent for RNA + ATAC, plus imputation of the missing modality (a probability per gene) | no — models both modalities | Nat Methods 2023 |
-| GLUE / scGLUE | per-modality latents aligned through a guidance graph of peak–gene links; translation by encoding A and decoding B | uses a feature-link prior | Cao & Gao, Nat Biotechnol 2022 |
-| scGT | joint embedding from a graph transformer; paired and unpaired; built for label transfer | no | Bioinformatics 2025 |
-| scMODAL | aligned embeddings from a few known correlated features | needs a few feature links | Nat Commun 2025 |
-| SuperMap | cross-modal mapping learned directly from unpaired data | no | PNAS 2026 |
-| scHPGT | regulatory-prior-guided joint embedding; resists over-alignment | no | Bioinformatics 2026 |
+| Method | What you get out | Citation |
+|---|---|---|
+| MultiVI | joint embedding + an imputed expression matrix for the missing modality | Nat Methods 2023 |
+| GLUE / scGLUE | joint embedding, built with a peak–gene prior; can also translate one modality into the other | Cao & Gao, Nat Biotechnol 2022 |
+| scGT | joint embedding | Bioinformatics 2025 |
+| scMODAL | joint embedding, built from a few known linked features | Nat Commun 2025 |
+| SuperMap | a mapping between modalities learned from unpaired data; no joint embedding by default | PNAS 2026 |
+| scHPGT | joint embedding, built with a regulatory prior | Bioinformatics 2026 |
 
 **READ FIRST** — Liu et al., Nat Methods 2025 — 40 methods benchmarked on dimension reduction, batch correction, clustering, label transfer and imputation, with a decision guideline
 
 **Speaker notes**
 
-> Two kinds of method are not in the previous table. MultiVI is the one that does steps one and two in a single model, so the latent and the imputed modality come from the same fit. GLUE aligns modalities through a guidance graph of peak-to-gene links, which makes it prior-driven rather than anchor-free. Everything else here is the 2025-26 generation. Before choosing from either table, read the benchmark strip at the bottom: Liu et al. 2025 evaluates forty methods on exactly these tasks and publishes a decision rule.
+> Two kinds of method are missing from the previous table. MultiVI is the one that does steps one and two in a single model, so the joint embedding and the imputed expression come from the same fit. GLUE aligns the modalities through a prior of peak-to-gene links, which makes it prior-driven rather than anchor-free. Everything else here is the 2025-26 generation, and in every case what you get out is a joint embedding. Before choosing from either table, read the benchmark strip: Liu et al. 2025 evaluates forty methods on exactly these tasks and publishes a decision rule.
 
 ---
 

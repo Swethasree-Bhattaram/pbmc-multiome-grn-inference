@@ -151,8 +151,8 @@ This forces a choice, and the choice decides which methods can run at all.
 
 | Feature space | What it is | What it costs | Which methods can use it |
 |---|---|---|---|
-| **Peaks** | ATAC columns stay genomic intervals | nothing is lost, but ATAC shares no feature with RNA, and intervals must be reconciled (merged or reduced to a common set) across datasets | only methods that work without a shared feature axis: transport and manifold alignment (scSAGA, Pamona, SCOT, UnionCom) |
-| **Gene activity** | sum accessibility over each gene's body and promoter (± a window), giving one score per gene | lossy — distal enhancers outside the window are dropped; and gene activity correlates with expression, which flatters integration scores | any method that needs a shared axis (LIGER, Harmony, scVI, Seurat) |
+| **Peaks** | ATAC columns stay genomic intervals | nothing is lost, but ATAC shares no feature with RNA, and intervals must be reconciled (merged or reduced to a common set) across datasets | only methods that work without a shared feature axis: transport and manifold alignment (scSAGA, Pamona, SCOT) |
+| **Gene activity** | sum accessibility over each gene's body and promoter (± a window), giving one score per gene | lossy — distal enhancers outside the window are dropped; and gene activity correlates with expression, which flatters integration scores | any method that needs a shared axis (LIGER, Harmony, Seurat) |
 
 Two consequences worth stating before any benchmark is quoted. First, the scIB benchmark found
 that ATAC integration performance is strongly affected by the choice of feature space, more so
@@ -161,44 +161,46 @@ a property of the input, not of the method. Second, gene activity is a proxy for
 FOSCTTM computed with a gene-activity ATAC input is partly measuring that proxy correlation.
 Record which space was used, and never compare FOSCTTM across the two.
 
-### Methods, part 1 — the workhorses, and what each one hands you
+### What "the output" means — one vocabulary
 
-These methods do not return the same kind of object. The third column is what matters for this
-pipeline: step 2 needs a cells × d array whose per-dataset blocks are commensurate.
+Papers use different words for the same object: *aligned embedding*, *latent*, *joint latent*,
+*shared factors*, *corrected reduction*. They all mean a table of `k` numbers per cell, with
+every dataset in the same space, so that distances between cells are meaningful. This document
+calls that a **joint embedding** throughout.
 
-| Method | What you get out | Needs a shared feature axis? | Reference |
-|---|---|---|---|
-| scSAGA | transport plan (cell-to-cell coupling) + joint embedding `H`, cells × 30, in the anchor's frame; plus a 2D projection | no — peaks or gene activity | Aluru lab, scSAGA; bioRxiv 2026, 10.64898/2026.03.26.714573 |
-| Pamona | partial Gromov–Wasserstein coupling (probabilistic cell matches) + a common low-dimensional space; also identifies shared versus dataset-specific cells | no | Cao, Hong, Wan, *Bioinformatics* 2021, 10.1093/bioinformatics/btab594 |
-| SCOT | Gromov–Wasserstein coupling + barycentric-projected features, i.e. one aligned matrix per dataset | no | Demetci et al., RECOMB 2020 |
-| UnionCom | aligned per-dataset embeddings + a cell matching; no single joint latent | no | Cao et al., *Bioinformatics* 2020, 10.1093/bioinformatics/btaa443 |
-| LIGER (rliger) | iNMF shared factor loadings `H` (cells × k) + per-dataset `W` (features × k); aligned matrix, clusters, and its own `imputeKNN` | **yes** — so ATAC must be gene activity | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
-| Seurat v5 | anchor-corrected or projected reduction; `TransferData` anchor weights → predicted expression; WNN graph across modalities | **yes**, and directional: RNA reference → ATAC query | Hao et al., *Cell* 2021, 10.1016/j.cell.2021.04.048 |
-| Harmony | a corrected PCA embedding only — no gene-level output | **yes** | Korsunsky et al., *Nat Methods* 2019, 10.1038/s41592-019-0619-0 |
-| scVI / scANVI | latent `z` + denoised, normalised expression | **yes**, or trained on multiome | Lopez et al., *Nat Methods* 2018, 10.1038/s41592-018-0229-2 |
+Every method below returns one of three things:
+
+| Output | What it is | What step 2 does with it |
+|---|---|---|
+| **Joint embedding** | `k` numbers per cell (cells × k), all datasets in the same space | uses it directly as the lookup space |
+| **Matching** | a cell-to-cell probability matrix saying which cells across datasets correspond | must first be turned into a neighbour list (take the best match per cell) or a joint embedding (average the matched cells); say which |
+| **Imputed expression** | a genes × cells matrix for the modality that was missing | step 2 is already done — skip it |
+
+### Methods, part 1 — the workhorses
+
+| Method | What you get out | Reference |
+|---|---|---|
+| scSAGA | joint embedding (cells × 30) + the matching it was computed from | Aluru lab, scSAGA; bioRxiv 2026, 10.64898/2026.03.26.714573 |
+| Pamona | joint embedding + matching; also labels cells as shared or dataset-specific | Cao, Hong, Wan, *Bioinformatics* 2021, 10.1093/bioinformatics/btab594 |
+| SCOT | matching + a joint embedding per dataset | Demetci et al., RECOMB 2020 |
+| LIGER | joint embedding (cells × k) + per-dataset gene loadings (genes × k); ships its own `imputeKNN` | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
+| Seurat v5 | joint embedding (cells × k); can also produce predicted expression for the other modality | Hao et al., *Cell* 2021, 10.1016/j.cell.2021.04.048 |
+| Harmony | joint embedding (cells × k); nothing else | Korsunsky et al., *Nat Methods* 2019, 10.1038/s41592-019-0619-0 |
+
+One requirement is not visible in that table: LIGER, Seurat and Harmony need RNA and ATAC on
+the **same feature axis**, so ATAC must enter as gene activity. The transport-based methods
+(scSAGA, Pamona, SCOT) have no such requirement.
 
 ### Methods, part 2 — multiome-native and recent
 
-| Method | What you get out | Needs a shared feature axis? | Reference |
-|---|---|---|---|
-| MultiVI | joint latent for RNA + ATAC, plus imputation of the missing modality (a probability per gene) | no — models both modalities | Ashuach, Gabitto et al., *Nat Methods* 2023, 10.1038/s41592-023-01909-9 |
-| GLUE / scGLUE | per-modality latents aligned through a guidance graph of peak–gene links; translation by encoding A and decoding B | uses a feature-link prior | Cao & Gao, *Nat Biotechnol* 2022, 10.1038/s41587-022-01284-4 |
-| scGT | joint embedding from a graph transformer; paired and unpaired; built for label transfer | no | Qi et al., *Bioinformatics* 2025, 10.1093/bioinformatics/btaf357 |
-| scMODAL | aligned embeddings from a few known correlated features | needs a few feature links | *Nat Commun* 2025, 10.1038/s41467-025-60333-z |
-| SuperMap | cross-modal mapping learned directly from unpaired data | no | *PNAS* 2026, 10.1073/pnas.2505182123 |
-| scHPGT | regulatory-prior-guided joint embedding; resists over-alignment | no | *Bioinformatics* 2026, 10.1093/bioinformatics/btag696 |
-
-A note on the objects: `H` from scSAGA, `H` from LIGER, `z` from scVI and the aligned
-embeddings from UnionCom/SCOT all drop into the same slot in step 2, because step 2 only needs
-a cells × d array with known block boundaries. A coupling alone does not: from a transport
-plan you must first derive either a matching (use the plan's argmax as the neighbour) or an
-embedding (barycentric projection), and whichever you choose has to be stated.
-
-Read before choosing: Liu et al., *Nat Methods* 2025
-(10.1038/s41592-025-02856-3) benchmarks 40 methods across these exact tasks — dimension
-reduction, batch correction, clustering, label transfer and imputation — and publishes a
-decision guideline. Companion: *Nat Methods* 2025, 10.1038/s41592-025-02737-9 (40 methods,
-paired/unpaired/mosaic).
+| Method | What you get out | Reference |
+|---|---|---|
+| MultiVI | joint embedding + an imputed expression matrix for the missing modality | Ashuach, Gabitto et al., *Nat Methods* 2023, 10.1038/s41592-023-01909-9 |
+| GLUE / scGLUE | joint embedding, built with a peak–gene prior; can also translate one modality into the other | Cao & Gao, *Nat Biotechnol* 2022, 10.1038/s41587-022-01284-4 |
+| scGT | joint embedding | Qi et al., *Bioinformatics* 2025, 10.1093/bioinformatics/btaf357 |
+| scMODAL | joint embedding, built from a few known linked features | *Nat Commun* 2025, 10.1038/s41467-025-60333-z |
+| SuperMap | a mapping between modalities learned from unpaired data; no joint embedding by default | *PNAS* 2026, 10.1073/pnas.2505182123 |
+| scHPGT | joint embedding, built with a regulatory prior; resists over-alignment | *Bioinformatics* 2026, 10.1093/bioinformatics/btag696 |
 
 ### How we measure it
 
@@ -650,11 +652,10 @@ Set before running anything, so the result cannot be reinterpreted afterwards.
 | 1 | scSAGA, bioRxiv 2026 | 10.64898/2026.03.26.714573 |
 | 1 | Cao, Hong, Wan, Pamona, *Bioinformatics* 2021 | 10.1093/bioinformatics/btab594 |
 | 1 | Demetci et al., SCOT, RECOMB 2020 | (proceedings; code at rsinghlab/SCOT) |
-| 1 | Cao et al., UnionCom, *Bioinformatics* 2020 | 10.1093/bioinformatics/btaa443 |
+| 1 | Cao et al., UnionCom, *Bioinformatics* 2020 (source of the 0.22 FOSCTTM reference value) | 10.1093/bioinformatics/btaa443 |
 | 1 | Welch et al., LIGER, *Cell* 2019 | 10.1016/j.cell.2019.05.006 |
 | 1 | Hao et al., Seurat v5 multimodal, *Cell* 2021 | 10.1016/j.cell.2021.04.048 |
 | 1 | Korsunsky et al., Harmony, *Nat Methods* 2019 | 10.1038/s41592-019-0619-0 |
-| 1 | Lopez et al., scVI, *Nat Methods* 2018 | 10.1038/s41592-018-0229-2 |
 | 1 | Cao & Gao, GLUE / scGLUE, *Nat Biotechnol* 2022 | 10.1038/s41587-022-01284-4 |
 | 1 | Qi et al., scGT, *Bioinformatics* 2025 | 10.1093/bioinformatics/btaf357 |
 | 1 | scMODAL, *Nat Commun* 2025 | 10.1038/s41467-025-60333-z |
