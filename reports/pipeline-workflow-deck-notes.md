@@ -1,6 +1,6 @@
 # Deck notes: from multiome data to a gene regulatory network
 
-Companion to `reports/pipeline-workflow-design.pptx` (18 slides) and to
+Companion to `reports/pipeline-workflow-design.pptx` (19 slides) and to
 `reports/pipeline-workflow-design.md`.
 
 Each slide below gives the text that goes **on the slide**, followed by the **speaker notes**.
@@ -139,57 +139,57 @@ Two measurements of the same cells must land on one shared map
 | OUT | per-dataset slices | one file each | saved once |
 | NEVER | genes, peaks, imputation, reference choice | — | putting these here makes every later change unattributable |
 
-**NOTE** — fix the ATAC feature space (peaks or gene activity) before comparing integrators — ATAC integration is more sensitive to it than RNA is
+**NOTE** — the ATAC 'feature space' is whether ATAC enters as peaks or as gene activity — it decides which integrators can run at all; fix it before comparing, and never compare scores across the two
 
 **Speaker notes**
 
-> Integration never sees genes or peaks, only 50 summaries per cell. The paired cells are held out from the start, because they are how this step gets graded.
+> Integration never sees genes or peaks, only 50 summaries per cell. The paired cells are held out from the start, because they are how this step gets graded. One input needs explaining: the ATAC feature space. ATAC is a matrix of genomic intervals - peaks - and different datasets almost never share the same intervals. Peaks keep full information but share no feature with RNA, so the integrator has to work without a shared axis, which is what the transport and manifold-alignment methods do. The alternative is gene activity: sum the open chromatin over each gene's body and promoter to get one number per gene, after which ATAC has a gene axis and any shared-axis method will run. It is lossy, because distal enhancers outside the window are dropped, and it correlates with expression, which flatters the scores. So record which one was used, and do not compare FOSCTTM across the two.
 
 ---
 
-## Slide 5 — Step 1 — Integration: methods
+## Slide 5 — Step 1 — integration methods: what each one hands you
 
 **On the slide**
 
-Six options; choose with the benchmark, not by intuition
+They do not all return the same kind of object — the right-hand column is what step 2 can consume
 
-| Method | What it does | Choose it when | Citation |
+| Method | What you get out | Needs a shared feature axis? | Citation |
 |---|---|---|---|
-| scSAGA | optimal-transport alignment to an anchor dataset | current baseline | Aluru lab (scSAGA) |
-| scGT | graph transformer; paired + unpaired; label transfer | scaling to millions of cells | Bioinformatics 2025 |
-| scMODAL | aligns using a few known linked features | few feature links available | Nat Commun 2025 |
-| SuperMap | learns the cross-modal map from unpaired data | ATAC-only datasets are added | PNAS 2026 |
-| scHPGT | regulatory-prior attention; resists over-alignment | cell states must stay distinct | Bioinformatics 2026 |
-| MultiVI | one probabilistic model for RNA + ATAC | steps 1 and 2 as a single model | Nat Methods 2023 |
-
-**READ FIRST** — Liu et al., Nat Methods 2025 — 40 methods, with a decision guideline for dimension reduction, batch correction, clustering, label transfer and imputation
+| scSAGA | transport plan (cell-to-cell coupling) + joint embedding H, cells × 30, in the anchor's frame; plus a 2D projection | no — works on peaks or gene activity | Aluru lab; bioRxiv 2026 |
+| Pamona | partial Gromov–Wasserstein coupling (probabilistic cell matches) + a common low-dim space; also flags shared vs dataset-specific cells | no | Cao et al., Bioinformatics 2021 |
+| SCOT | Gromov–Wasserstein coupling + barycentric-projected features, i.e. one aligned matrix per dataset | no | Demetci et al., RECOMB 2020 |
+| UnionCom | aligned per-dataset embeddings + a cell matching — no single joint latent | no | Cao et al., Bioinformatics 2020 |
+| LIGER (rliger) | iNMF shared factor loadings H (cells × k) + per-dataset W (features × k); aligned matrix and clusters; imputeKNN | YES — so ATAC must be gene activity | Welch et al., Cell 2019 |
+| Seurat v5 | anchor-corrected / projected reduction; TransferData gives anchor weights → predicted expression; WNN graph across modalities | YES, and directional: RNA reference → ATAC query | Hao et al., Cell 2021 |
+| Harmony | a corrected PCA embedding only — no gene-level output | YES | Korsunsky et al., Nat Methods 2019 |
+| scVI / scANVI | latent z + denoised, normalised expression | YES (or trained on multiome) | Lopez et al., Nat Methods 2018 |
 
 **Speaker notes**
 
-> Do not choose by intuition: the 2025 Nature Methods benchmark covers these exact tasks and publishes a decision rule. MultiVI is the option if steps 1 and 2 should be one model.
+> The point of this table is the right-hand side: these methods do not all return the same kind of object. scSAGA hands you a transport plan plus a 30-dimensional joint embedding; Pamona hands you a partial Gromov-Wasserstein coupling plus a common low-dimensional space and a shared-versus-specific cell call; SCOT hands you a coupling plus one projected matrix per dataset; UnionCom gives aligned embeddings but no single joint latent. LIGER gives shared factor loadings, which is what its own imputeKNN was designed around, but it needs one common feature axis, so ATAC has to arrive as gene activity. Seurat's cross-modality path is directional, RNA reference to ATAC query. Harmony and scVI give you an embedding and denoised expression respectively, and both need shared features. Step 2 only needs one thing: a cells by d array whose blocks are commensurate. So the question is not which method is best in general, it is which method produces an object that step 2 can use.
 
 ---
 
-## Slide 6 — Step 1 — Integration: how good is it?
+## Slide 6 — Step 1 — integration methods: special-purpose and recent
 
 **On the slide**
 
-Four metrics; the first needs paired cells and is the strictest
+Multiome-native models, and the 2025–26 generation
 
-| Metric | What it asks | Truth needed | Good looks like |
+| Method | What you get out | Needs a shared feature axis? | Citation |
 |---|---|---|---|
-| FOSCTTM | for each cell, what fraction of other cells are closer to it than its true cross-modal partner is? | paired cells, held out | 0 = perfect, 0.5 ≈ random. Published: 0.14–0.16 (MMD-MA), 0.22 (UnionCom), 0.39 (unnormalized) |
-| label conservation | are cell types still separated? ARI, NMI, cLISI, silhouette, isolated-label F1, graph connectivity | cell-type labels | close to unintegrated labels, far from a shuffled control |
-| batch correction | are datasets mixed? kBET, iLISI, batch silhouette | dataset IDs | improves while the label metrics hold |
-| label transfer | can a label learned on RNA be assigned to the ATAC half? | paired cells + labels | > 0.85 on major lineages |
+| MultiVI | joint latent for RNA + ATAC, plus imputation of the missing modality (a probability per gene) | no — models both modalities | Nat Methods 2023 |
+| GLUE / scGLUE | per-modality latents aligned through a guidance graph of peak–gene links; translation by encoding A and decoding B | uses a feature-link prior | Cao & Gao, Nat Biotechnol 2022 |
+| scGT | joint embedding from a graph transformer; paired and unpaired; built for label transfer | no | Bioinformatics 2025 |
+| scMODAL | aligned embeddings from a few known correlated features | needs a few feature links | Nat Commun 2025 |
+| SuperMap | cross-modal mapping learned directly from unpaired data | no | PNAS 2026 |
+| scHPGT | regulatory-prior-guided joint embedding; resists over-alignment | no | Bioinformatics 2026 |
 
-**PASS IF** — FOSCTTM below the shuffled-partner control  +  label transfer > 0.85  +  batch metrics up while label metrics hold.   Not a gate: scSAGA's 'global alignment score' — it moves with the anchor.
-
-scib implements the middle two rows (14 metrics). Report both halves separately — a single combined score hides the batch-versus-biology trade (Luecken et al., Nat Methods 2022).
+**READ FIRST** — Liu et al., Nat Methods 2025 — 40 methods benchmarked on dimension reduction, batch correction, clustering, label transfer and imputation, with a decision guideline
 
 **Speaker notes**
 
-> FOSCTTM is simple: for a cell with a known partner, what fraction of other cells are closer to it than that partner is. Perfect is 0, random is about 0.5, and the best published numbers on real paired data are 0.14 to 0.22 - so the scale is calibrated before we use it. Report the scIB label and batch halves separately; a single combined score can hide a method that removed batch by destroying biology.
+> Two kinds of method are not in the previous table. MultiVI is the one that does steps one and two in a single model, so the latent and the imputed modality come from the same fit. GLUE aligns modalities through a guidance graph of peak-to-gene links, which makes it prior-driven rather than anchor-free. Everything else here is the 2025-26 generation. Before choosing from either table, read the benchmark strip at the bottom: Liu et al. 2025 evaluates forty methods on exactly these tasks and publishes a decision rule.
 
 ---
 
@@ -213,11 +213,46 @@ Not hypothetical: Dijkstra et al., *Patterns* 2022 (10.1016/j.patter.2021.100414
 
 **Speaker notes**
 
+> FOSCTTM is simple: for a cell with a known partner, what fraction of other cells are closer to it than that partner is. Perfect is 0, random is about 0.5, and the best published numbers on real paired data are 0.14 to 0.22 - so the scale is calibrated before we use it. Report the scIB label and batch halves separately; a single combined score can hide a method that removed batch by destroying biology.
+
+---
+
+## Slide 8 — Step 2 — Imputation: why this step is risky
+
+**On the slide**
+
+Averaging is smoothing, and smoothing manufactures correlation
+
+1  Zeros disappear
+An average of 20 cells is rarely zero.
+Guessed cells look richer than measured ones.
+
+2  Correlations inflate
+Two genes present in the same neighbourhood
+become correlated — because we averaged them,
+not because a TF links them.
+
+3  The block is detectable
+Guessed rows have a different distribution
+from measured rows, so a model can
+separate the two.
+
+4  The GRN chases 1–3
+A model that ranks genes by mutual
+predictability ranks the inflated
+correlations first.
+
+**The visible signature of consequence 4** — A network whose strongest links are housekeeping genes — ribosomal, mitochondrial, HLA — because those are high and correlated in every neighbourhood.
+
+Not hypothetical: Dijkstra et al., Patterns 2022 (10.1016/j.patter.2021.100414) measured networks before and after imputation and found inflated gene–gene correlations, altered network structure, and a possible decrease in reconstruction performance.
+
+**Speaker notes**
+
 > This is the mechanism, and it is why the metrics on the next slides matter. Averaging is smoothing, and smoothing manufactures correlation. Whatever truly regulates what, the smoothed matrix insists these genes always appear together, and the boosting model believes it. Housekeeping genes are high and correlated in every neighbourhood, so they surface at the top of the ranking.
 
 ---
 
-## Slide 8 — Step 2 — Imputation: input and output
+## Slide 9 — Step 2 — Imputation: input and output
 
 **On the slide**
 
@@ -243,7 +278,7 @@ One gene axis, one normalization, one frozen held-out set
 
 ---
 
-## Slide 9 — Step 2 — Imputation: methods
+## Slide 10 — Step 2 — Imputation: methods
 
 **On the slide**
 
@@ -267,7 +302,7 @@ The published ceiling for this task is low — expect 0.2, not 0.9
 
 ---
 
-## Slide 10 — Step 2 — Imputation: how good is it?
+## Slide 11 — Step 2 — Imputation: how good is it?
 
 **On the slide**
 
@@ -292,7 +327,7 @@ MSE alone is not enough: a blurred matrix can have low error and still destroy c
 
 ---
 
-## Slide 11 — Step 3 — GRN inference: input and output
+## Slide 12 — Step 3 — GRN inference: input and output
 
 **On the slide**
 
@@ -317,7 +352,7 @@ WHY RECORD  the two DECIDE rows are not needed to run the step, but they change 
 
 ---
 
-## Slide 12 — Step 3 — GRN inference: methods
+## Slide 13 — Step 3 — GRN inference: methods
 
 **On the slide**
 
@@ -341,7 +376,7 @@ Keep it honest: geneRNIB (2025) finds simple models with fewer assumptions match
 
 ---
 
-## Slide 13 — Step 3 — GRN inference: how good is it?
+## Slide 14 — Step 3 — GRN inference: how good is it?
 
 **On the slide**
 
@@ -366,7 +401,7 @@ Three truth tiers, following BEELINE: synthetic networks (complete, artificial),
 
 ---
 
-## Slide 14 — Validation of the pipeline itself
+## Slide 15 — Validation of the pipeline itself
 
 **On the slide**
 
@@ -395,7 +430,7 @@ scMultiSim: Nat Methods 2025, 10.1038/s41592-025-02651-0.   For plausibility on 
 
 ---
 
-## Slide 15 — How the steps fit together
+## Slide 16 — How the steps fit together
 
 **On the slide**
 
@@ -417,7 +452,7 @@ A pipeline is four steps where each output has been shown good enough to be the 
 
 ---
 
-## Slide 16 — Run order and cost
+## Slide 17 — Run order and cost
 
 **On the slide**
 
@@ -440,33 +475,6 @@ Everything except step 3 runs on CPU in hours
 
 ---
 
-## Slide 17 — What good looks like
-
-**On the slide**
-
-Set before running anything, so the result cannot be reinterpreted
-
-| Metric | A good result |
-|---|---|
-| FOSCTTM | 0.14–0.22 (published range); 0.5 is random; 0 is perfect |
-| gene-wise ρ, ATAC→RNA | 0.155–0.22 — not 0.9, which suggests leakage |
-| pFCS | high, and clearly above the shuffled-reference control |
-| MSE | clearly below the same control |
-| densification | guessed rows no denser than measured rows |
-| network stability | reported differences exceed seed-to-seed noise |
-| AUPRC / early precision | above the negative control, on cell-type-matched truth |
-| lineage regulators | present in the top edges of every cell-type network |
-
-_[chart: FOSCTTM — lower is better]_
-
-_[chart: ATAC→RNA gene-wise Pearson — published ceiling]_
-
-**Speaker notes**
-
-> Targets are set before running anything, so the result cannot be reinterpreted afterwards.
-
----
-
 ## Slide 18 — Summary
 
 **On the slide**
@@ -478,6 +486,34 @@ _[chart: ATAC→RNA gene-wise Pearson — published ceiling]_
 **3  GRN**: graded by AUPRC and early precision on cell-type-matched truth, with seed stability reported first.
 
 **4  VALIDATION**: the whole pipeline graded once on simulated data with a known network, before real biology.
+
+For every step here there is a published, calibrated way to measure it — three of the four are cheap, because multiome data hands us the answer.
+
+**Speaker notes**
+
+> Targets are set before running anything, so the result cannot be reinterpreted afterwards.
+
+---
+
+## Slide 19 — Summary
+
+**On the slide**
+
+**1  INTEGRATION**
+
+graded by FOSCTTM and the scIB label/batch metrics — needs paired cells, which multiome data provides
+
+**2  IMPUTATION**
+
+graded by pFCS above all, then MSE and gene-wise ρ, against a shuffled-reference control
+
+**3  GRN**
+
+graded by AUPRC and early precision on cell-type-matched truth, with seed stability reported first
+
+**4  VALIDATION**
+
+the whole pipeline graded once on simulated data with a known network, before real biology
 
 For every step here there is a published, calibrated way to measure it — three of the four are cheap, because multiome data hands us the answer.
 
