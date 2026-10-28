@@ -294,65 +294,61 @@ and say "that one is an average", so nobody can ask whether the averages helped.
 step 3 can be run with and without the guessed rows — the comparison that decides whether
 step 2 earns its place.
 
-### Methods
+### Methods that use `H` — steps 1 and 2 stay separate
 
-Only the first row consumes step 1's embedding. The rest take the raw matrices and learn their
-own joint space internally, which has a design consequence stated after the table.
+Every method here consumes `H` plus **one companion object**, because coordinates alone cannot
+produce expression values. This is the family the repo is in.
+
+| Method | What it consumes | How it turns that into gene values | Reference |
+|---|---|---|---|
+| reverse-imputeKNN (this repo) | `H` + the measured RNA + a frozen reference block | 20 nearest reference cells in `H`, weights `exp(-distance)` | `run.py` |
+| LIGER `imputeKNN` | `H` (as `H.norm`) + the measured RNA | 20 nearest reference cells in `H.norm`, weighted average of their expression | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
+| moscot | `H` passed as the shared embedding (`joint_attr`) + the measured RNA | solves an optimal-transport plan between cells, then transports expression along it | Klein et al., *Nature* 2025, 10.1038/s41586-024-08453-2 |
+| Symphony `mapQuery` | an embedding + the reference's cluster centroids + query expression | maps query cells into the embedding, then transfers from the nearest reference cells | Kang et al., *Nat Commun* 2021, 10.1038/s41467-021-25957-x |
+| MOFA+ `project_data` | factors + their gene loadings | projects cells into the existing factor space, then reconstructs | Argelaguet et al., *Genome Biol* 2020, 10.1186/s13059-020-02015-1 |
+
+Two of these were checked in source rather than from memory: rliger's `imputeKNN` aborts if
+`H.norm` is absent and then calls `RANN::nn2(object@H.norm[reference, ], object@H.norm[query, ],
+k = nNeighbors)`; Symphony's `mapQuery(exp_query, metadata_query, ref_obj)` projects query cells
+into a reference object that holds the embedding and centroids. moscot accepts a precomputed
+embedding as `joint_attr`, which is documented in its mapping tutorial.
+
+### Methods that build their own embedding — they replace step 1
 
 | Method | What it consumes | Kind of model | Reference |
 |---|---|---|---|
-| kNN average | step 1's `H` + the measured RNA | not learned — a lookup | this repo |
-| scGALA | measured RNA + ATAC **as gene activity** + its own cell alignment (a file of anchor pairs) | graph attention network | *Nat Commun* 2025, 10.1038/s41467-025-66644-5 |
+| scGALA | measured RNA + ATAC **as gene activity** + its own cell alignment (anchor pairs) | graph attention network | *Nat Commun* 2025, 10.1038/s41467-025-66644-5 |
 | scDCT | raw RNA and ATAC matrices; paired or unpaired | conditional diffusion | *Brief Bioinform* 2025, 10.1093/bib/bbaf400 |
 | Cisformer | ATAC only, 10,000 open regions per cell; pretrained | transformer | *Genome Biol* 2025, 10.1186/s13059-025-03823-z |
 | scButterfly | raw RNA and ATAC matrices; paired or unpaired | two VAEs + translator | *Nat Commun* 2024, 10.1038/s41467-024-47418-x |
 | MultiVI | raw RNA and ATAC counts, with a mask for which modality each cell has | joint VAE | *Nat Methods* 2023, 10.1038/s41592-023-01909-9 |
 | Polarbear | raw RNA and ATAC matrices + co-assay cells for the translator | VAE + linear map | *J Comput Biol* 2022, 10.1089/cmb.2022.0264 |
 
-Yes: these are learned models — VAEs, a conditional diffusion model, a transformer, a graph
-attention network — and they all aim at the same output, expression values for genes in cells
-that were not measured for RNA. The kNN average is the only non-learned entry.
-
-**But only the first row takes `H`.** The others consume the raw matrices, because they learn
-their own joint representation inside the model. scGALA is the closest to a drop-in and still
-is not one: it wants reference RNA, ATAC converted to gene activity, and a file of cell-to-cell
-anchors produced by its own alignment. (An optimal-transport plan from step 1 could in
-principle be converted into that anchor file, but that is a converter you would write and
-validate, not a supported path.) The consequence: adopting any of these **merges steps 1 and 2
-into a single model**. That is a legitimate design — often a better one, since the embedding and
-the imputation are then fitted jointly — but then the step-1 gate applies to the model's
-internal embedding rather than to a saved `H`, and there is no `H` file in the middle of the
-pipeline.
-
 The published ceiling for this task is low. Polarbear reports ATAC→RNA gene-wise Pearson of
 about 0.22, BABEL about 0.155, on SNARE-seq. Two consequences: a method claiming 0.9
 correlation is more likely leaking than excellent, and a method reporting 0.05 has produced
 nothing. Both are knowable in an afternoon.
 
-### Methods that accept a precomputed embedding
+### Does the integration step still matter?
 
-If steps 1 and 2 are to stay separate — which is what makes the step-1 gate meaningful — the
-imputer must accept `H`. Only a small family does, and every member needs **one companion
-object**, because coordinates alone cannot produce gene values.
+Yes, and the answer differs by family.
 
-| Method | What it consumes | How it turns that into gene values | Checked against |
-|---|---|---|---|
-| `imputeKNN` (rliger / LIGER) | `H.norm` (the aligned factor loadings) + reference expression + a query set | takes the `nNeighbors` nearest reference cells in `H.norm` and averages their expression | rliger `R/ATAC.R`: `RANN::nn2(object@H.norm[reference, ], object@H.norm[query, ], k = nNeighbors)`, after aborting if `H.norm` is missing |
-| reverse-imputeKNN (this repo) | `H` + the reference block + reference expression | same idea, weights `exp(-distance)` | `run.py` |
-| `mapQuery` (Symphony) | a reference object holding the embedding and cluster centroids, plus query expression | projects query cells into the reference embedding, then transfers by nearest reference cells | `R/mapQuery.R` |
-| `project_data` (MOFA+) | trained factors + loadings | projects new cells into the existing factor space, then reconstructs | package API |
-| scArches / online iNMF | a trained model + the new data | projects into the existing latent, then decodes | package API |
+- **With the `H`-consuming family:** integration is load-bearing. `H` *is* the lookup space;
+  without a shared space in which distances between an RNA cell and an ATAC cell mean something,
+  a nearest-neighbour average is meaningless. Step 1 is the reason step 2 works at all.
+- **With the self-embedding family:** integration still happens, inside the imputer. Nothing is
+  skipped. But running scSAGA first and then handing the raw matrices to one of these would
+  integrate twice, and the second integration would ignore the first.
 
-The rule that organises the table: **`H` plus reference expression gives an averaging method;
-`H` plus a decoder gives a generative one.** An embedding with neither companion cannot produce
-a genes × cells matrix.
+So the question is not *whether* to integrate but *where*: as its own artifact (the
+`H`-consuming methods — four steps, each gateable) or inside the model (the self-embedding
+methods — three steps, no `H` to inspect, stronger benchmarks).
 
-Design consequence, and it is the reason this section exists: choosing from the translator table
-above (scGALA, scDCT, Cisformer, scButterfly, Polarbear, MultiVI) collapses steps 1 and 2 into a
-single model, which is defensible but removes `H` as an inspectable artifact and moves the
-step-1 gate inside that model. Choosing from this table keeps the four-step pipeline and keeps
-the gate where it is. The repo's current design — scSAGA for `H`, then kNN averaging — is in the
-second category and is therefore self-consistent.
+One honest trade-off, worth saying before a choice is made: the `H`-consuming family is the
+older and simpler lineage (LIGER 2019, Symphony 2021, MOFA+ 2020, moscot 2025, and this repo's
+kNN), while every recent cross-modality translator trains end-to-end on raw matrices, because
+that is what the benchmarks reward. Choosing the separable design buys interpretable, individually
+validatable steps and pays for it in benchmark performance.
 
 ### What averaging does to the matrix
 
@@ -713,6 +709,10 @@ Set before running anything, so the result cannot be reinterpreted afterwards.
 | 1 | scHPGT, *Bioinformatics* 2026 | 10.1093/bioinformatics/btag696 |
 | 1–2 | Ashuach, Gabitto et al., MultiVI, *Nat Methods* 2023 | 10.1038/s41592-023-01909-9 |
 | 1 | FOSCTTM: definition and reference values (MMD-MA / UnionCom, SNARE-seq) | PMC8095090 |
+| 2 | Welch et al., LIGER imputeKNN, *Cell* 2019 | 10.1016/j.cell.2019.05.006 |
+| 2 | Klein et al., moscot, *Nature* 2025 | 10.1038/s41586-024-08453-2 |
+| 2 | Kang et al., Symphony mapQuery, *Nat Commun* 2021 | 10.1038/s41467-021-25957-x |
+| 2 | Argelaguet et al., MOFA+, *Genome Biol* 2020 | 10.1186/s13059-020-02015-1 |
 | 2 | scGALA, *Nat Commun* 2025 | 10.1038/s41467-025-66644-5 |
 | 2 | scDCT, *Brief Bioinform* 2025 | 10.1093/bib/bbaf400 |
 | 2 | Cisformer, *Genome Biol* 2025 | 10.1186/s13059-025-03823-z |

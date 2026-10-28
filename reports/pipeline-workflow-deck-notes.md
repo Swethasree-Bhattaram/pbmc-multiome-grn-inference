@@ -1,6 +1,6 @@
 # Deck notes: from multiome data to a gene regulatory network
 
-Companion to `reports/pipeline-workflow-design.pptx` (19 slides) and to
+Companion to `reports/pipeline-workflow-design.pptx` (20 slides) and to
 `reports/pipeline-workflow-design.md`.
 
 Each slide below gives the text that goes **on the slide**, followed by the **speaker notes**.
@@ -244,15 +244,38 @@ One gene axis, one normalization, one frozen held-out set
 
 ---
 
-## Slide 9 — Step 2 — Imputation: methods
+## Slide 9 — Step 2 — imputation methods that use H
 
 **On the slide**
 
-All learned except the first — and only the first uses step 1's embedding
+Only this family keeps step 1 and step 2 separate — and it is what you already do
+
+| Method | What it consumes | How it makes gene values | Citation |
+|---|---|---|---|
+| reverse-imputeKNN  (this repo) | H + the measured RNA + a reference block | 20 nearest reference cells, weights exp(−distance) | run.py |
+| LIGER  imputeKNN | H (its H.norm) + the measured RNA | 20 nearest reference cells, weighted average | Welch et al., Cell 2019 |
+| moscot | H passed as the shared embedding (joint_attr) | optimal-transport plan between cells; expression transported along it | Klein et al., Nature 2025 |
+| Symphony  mapQuery | H + cluster centroids of the reference | maps query cells into H, then nearest-cell transfer | Kang et al., Nat Commun 2021 |
+| MOFA+  project_data | H as factors + their gene loadings | projects cells into the factor space, then reconstructs | Argelaguet et al., Genome Biol 2020 |
+
+H + MEASURED RNA  H plus the measured RNA is all these need — which is why the integration step earns its place: without H there is no shared space in which to look up a neighbour
+
+None of these can work from H alone: coordinates do not contain expression. Every one of them is H plus one companion object.
+
+**Speaker notes**
+
+> This is the family your design needs, and it is the one the repo is in. Every entry consumes H plus one companion object, because coordinates alone cannot produce expression values. Our reverse-imputeKNN takes H, the measured RNA and a frozen reference set, finds the twenty nearest reference cells and averages with exp minus distance weights. LIGER's imputeKNN is the same algorithm - it refuses to run if H.norm is missing, then takes the twenty nearest reference cells in that space. moscot accepts an embedding as its joint_attr and solves an optimal-transport plan between cells, then moves expression along that plan; that is the OT analogue of the same idea. Symphony's mapQuery projects query cells into a reference embedding and you transfer from the nearest reference cells. MOFA+ projects into an existing factor space and reconstructs. The point for the talk: the integration step is load bearing here. Without H there is no shared space in which a neighbour lookup means anything, so step 1 is not decoration - it is the only reason the imputation works.
+
+---
+
+## Slide 10 — Step 2 — imputation methods that build their own embedding
+
+**On the slide**
+
+These replace step 1: the integration happens inside the imputer, so there is no H to hand over
 
 | Method | What it consumes | Kind of model | Citation |
 |---|---|---|---|
-| kNN average | step 1's H + the measured RNA | not learned — a lookup | this repo |
 | scGALA | measured RNA + ATAC as gene activity + its own cell alignment | graph attention network | Nat Commun 2025 |
 | scDCT | raw RNA and ATAC matrices; paired or unpaired | conditional diffusion | Brief Bioinform 2025 |
 | Cisformer | ATAC only, 10,000 open regions per cell; pretrained | transformer | Genome Biol 2025 |
@@ -260,17 +283,17 @@ All learned except the first — and only the first uses step 1's embedding
 | MultiVI | raw RNA and ATAC counts, with a mask for which modality each cell has | joint VAE | Nat Methods 2023 |
 | Polarbear | raw RNA and ATAC matrices + co-assay cells for the translator | VAE + linear map | J Comput Biol 2022 |
 
-ONLY THE kNN ROW USES H  every row except the first learns its own joint space from the raw matrices — so choosing one merges step 1 and step 2 into a single model, and there is no H to hand over
+THEY REPLACE STEP 1  easier to adopt and better on benchmarks, but they merge steps 1 and 2 — the step-1 gate then applies to the model's internal embedding, and there is no H file in the middle
 
 Ceiling for this task: ATAC→RNA gene-wise Pearson ≈ 0.22 (Polarbear), 0.155 (BABEL), on SNARE-seq. 0.9 suggests leakage; 0.05 means nothing was produced.
 
 **Speaker notes**
 
-> The ceiling is low. Polarbear reports about 0.22 gene-wise Pearson for ATAC to RNA, BABEL about 0.155. If a method reports 0.9, suspect leakage rather than excellence. If it reports 0.05, the step produced nothing. Both are knowable in an afternoon.
+> These are the recent, better-benchmarked options, and they all share one property: they take the raw matrices and learn their own joint representation internally. scGALA needs reference RNA, ATAC converted to gene activity, and its own anchor file; scDCT and scButterfly train VAEs on raw matrices; Cisformer takes ATAC open regions only; MultiVI models both modalities with a mask; Polarbear adds a translator layer between two VAEs. Adopting any of them does not remove the need to integrate - it moves the integration inside the imputer. The cost is that there is no H artifact to gate on, so the step-1 check has to be applied to the model's internal embedding instead, and the pipeline becomes three steps rather than four. Ceiling to keep in mind: about 0.22 gene-wise Pearson for ATAC to RNA.
 
 ---
 
-## Slide 10 — Step 2 — Imputation: what averaging does to the matrix
+## Slide 11 — Step 2 — Imputation: what averaging does to the matrix
 
 *The cheap option fails in a predictable way — this is the mechanism*
 
@@ -294,7 +317,7 @@ Not hypothetical: Dijkstra et al., *Patterns* 2022 (10.1016/j.patter.2021.100414
 
 ---
 
-## Slide 11 — Step 2 — Imputation: how good is it?
+## Slide 12 — Step 2 — Imputation: how good is it?
 
 **On the slide**
 
@@ -319,7 +342,7 @@ Definitions follow the imputation task in Liu et al., Nat Methods 2025; scIMC (N
 
 ---
 
-## Slide 12 — Step 3 — GRN inference: input and output
+## Slide 13 — Step 3 — GRN inference: input and output
 
 **On the slide**
 
@@ -344,7 +367,7 @@ WHY RECORD  the two DECIDE rows are not needed to run the step, but they change 
 
 ---
 
-## Slide 13 — Step 3 — GRN inference: methods
+## Slide 14 — Step 3 — GRN inference: methods
 
 **On the slide**
 
@@ -368,7 +391,7 @@ Keep it honest: geneRNIB (2025) finds simple models with fewer assumptions match
 
 ---
 
-## Slide 14 — Step 3 — GRN inference: how good is it?
+## Slide 15 — Step 3 — GRN inference: how good is it?
 
 **On the slide**
 
@@ -393,7 +416,7 @@ Three truth tiers, following BEELINE: synthetic networks (complete, artificial),
 
 ---
 
-## Slide 15 — Validation of the pipeline itself
+## Slide 16 — Validation of the pipeline itself
 
 **On the slide**
 
@@ -422,7 +445,7 @@ scMultiSim: Nat Methods 2025, 10.1038/s41592-025-02651-0.   For plausibility on 
 
 ---
 
-## Slide 16 — How the steps fit together
+## Slide 17 — How the steps fit together
 
 **On the slide**
 
@@ -444,7 +467,7 @@ A pipeline is four steps where each output has been shown good enough to be the 
 
 ---
 
-## Slide 17 — Run order and cost
+## Slide 18 — Run order and cost
 
 **On the slide**
 
@@ -467,7 +490,7 @@ Everything except step 3 runs on CPU in hours
 
 ---
 
-## Slide 18 — What good looks like
+## Slide 19 — What good looks like
 
 **On the slide**
 
@@ -494,7 +517,7 @@ _[chart: ATAC→RNA gene-wise Pearson — published ceiling]_
 
 ---
 
-## Slide 19 — Summary
+## Slide 20 — Summary
 
 **On the slide**
 
