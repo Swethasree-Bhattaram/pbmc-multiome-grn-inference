@@ -402,11 +402,32 @@ reproducible and that population-level comparison is the defensible unit.
 | three seeds | the same run repeated | so seed-to-seed noise is measurable |
 | top-N cap | e.g. top 50,000 edges by weight | the standard evaluation range |
 
-The network is stored as an **edge list** — one row per link. That is the network, just not in
-matrix form. The equivalent matrix is regulators × genes (2,827 × 4,389 ≈ 12.4 million cells
-in this project), almost entirely zeros, so the edge list is both smaller and the form every
-metric needs: AUPRC and early precision both take a ranked list of pairs. Pivot to a matrix
-only for plotting.
+The network **is** a matrix. It is the adjacency matrix `A`: regulators down the rows, genes
+across the columns, and entry (i, j) is the weight of the edge from regulator i to target j.
+What gets written to disk is that same object in sparse form — one row per non-zero entry,
+i.e. `(regulator, target, weight)`. Nothing is lost, and the two convert in one line either
+way.
+
+At this project's scale the matrix is not large: 2,827 × 4,389 ≈ 12.4 M cells, about 47 MiB as
+dense float32, of which 7–16% are non-zero. So size is not the reason for the edge-list
+default. The reasons are:
+
+- **Zero is ambiguous.** In a dense matrix a 0 means both "no edge was inferred" and "an edge
+  of weight zero". Every metric then has to guess which one it is, and the guess changes the
+  AUPRC.
+- **Every consumer wants pairs.** AUPRC, early precision, geneRNIB's top-50k, Cytoscape, and
+  the SCENIC-style regulon step all take a ranked list of (source, target, weight).
+- **Importances are per-target.** Each target has its own regression and therefore its own
+  scale, so comparing values across a row or column of the matrix compares quantities that are
+  not comparable. A ranked list does not invite that mistake.
+- **It scales.** In the full gene space the matrix is 2,827 × 36,601 ≈ 103 M cells (395 MiB),
+  and one matrix per cell type multiplies that again.
+
+Materialise it when you need it — `df.pivot(index='TF', columns='target',
+values='importance').fillna(0)`, or a `scipy.sparse.coo_matrix`. One caveat: a *signed* matrix
+is a different object from this one. GRNBoost2 importances are unsigned, so they say nothing
+about activation versus repression; methods such as CellOracle produce signed coefficient
+matrices instead.
 
 Three seeds are not ceremony. The multimodal-GRN benchmark (GRETA) found these networks
 highly sensitive to random seeds and to swapping a single pipeline step. If seed-to-seed
