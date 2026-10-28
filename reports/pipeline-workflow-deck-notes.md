@@ -68,7 +68,7 @@ Each step's output is literally the next step's input
 - per-dataset PCA (50 PC)
 - modality label
 - dataset label
-- paired cells held out
+- paired cells set aside (answer key)
 
 **OUT**
 - H: cells × 30 numbers
@@ -79,9 +79,9 @@ Each step's output is literally the next step's input
 
 **IN**
 - H  (from step 1)
-- real RNA, one gene axis
-- list of ATAC rows
-- held-out cells frozen
+- measured RNA, one gene axis
+- which cells need values
+- answer-key cells excluded
 
 **OUT**
 - X: cells × genes
@@ -118,7 +118,7 @@ Only two objects matter — H and X — and both can be inspected without runnin
 
 **Speaker notes**
 
-> Read it as a factory line: each output is the next step's input. Only two objects matter, H and X, and both can be inspected without running a network.
+> Read it as a factory line: each output is the next step's input. Only two objects matter, H and X, and both can be inspected without running a network. Three terms in step 2 need defining once. Measured RNA is the gene-expression matrix of the cells that actually have RNA - the multiome cells - and it is the only source of the values copied onto ATAC cells. Which cells need values is the list of row numbers belonging to ATAC-only cells, because those are the rows being filled in. And the answer-key cells are a set of cells measured both ways, whose RNA we hide from the imputer and compare against afterwards; frozen means fixed once and never used to fit anything, so the comparison is honest.
 
 ---
 
@@ -226,14 +226,14 @@ One gene axis, one normalization, one frozen held-out set
 |  | Item | Shape / form | Why it matters |
 |---|---|---|---|
 | IN | H.npy + blocks.json | cells × 30 | the lookup space from step 1 |
-| IN | real RNA | cells × genes, ONE gene axis | the values being copied |
+| IN | measured RNA | cells × genes, ONE gene axis | the values being copied onto ATAC cells |
 | IN | normalization | declared, e.g. log1p CPM/1e4 | measured and guessed rows must share a scale |
-| IN | ATAC row list | indices | which rows are being filled |
-| IN | held-out paired cells | frozen index | never in the reference, or the test is void |
+| IN | which cells need values | row indices of ATAC-only cells | the rows of X being filled in |
+| IN | answer-key cells | paired cells, fixed and excluded | hidden RNA we compare against; if they leak in, the test is void |
 | OUT | X.npy | cells × genes, float32 | the only input to step 3 |
 | OUT | mask.npy | cells × genes, bool | per cell per gene: measured or guessed |
 | OUT | genes.txt, norm.txt | one axis, one normalization | written once, never re-derived |
-| OUT | frozen reference set | cell indices | keeps the held-out test honest |
+| OUT | reference set used | cell indices | proof the answer key was never inside |
 
 **WHY THE MASK** — without the mask nobody downstream can point at a row and say 'that one is an average' — so nobody can ask whether step 2 helped
 

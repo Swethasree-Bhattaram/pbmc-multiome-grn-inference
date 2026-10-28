@@ -50,16 +50,29 @@ Method names later in the document are only different ways of doing one of these
 ## 1. The workflow at a glance
 
 ```
-1. INTEGRATION          2. IMPUTATION           3. GRN                 4. VALIDATION
-   IN  per-dataset PCA     IN  H                   IN  X                  IN  edge table
-       modality label          real RNA                TF list                external truth
-       dataset label           ATAC row list           target rule            negative control
-       paired cells held out   held-out cells frozen   cells by type
-   OUT H                   OUT X                   OUT TF, target,        OUT AUPRC, early
-       cells × 30 numbers      cells × genes           importance              precision,
-       row-range map           mask: real/guessed      cells used, 3 seeds     stability,
-       no genes, no impute     one normalization       one network per type    a verdict
+1. INTEGRATION             2. IMPUTATION              3. GRN                 4. VALIDATION
+   IN                         IN                         IN                     IN
+   · one PCA per dataset      · H  (from step 1)         · the matrix X         · edge tables
+   · which modality a cell is · measured RNA: the         · TF list              · independent
+     (RNA / ATAC)               values being copied      · target rule            evidence
+   · which dataset it is        onto ATAC cells          · cells grouped        · a negative
+   · paired cells set aside   · which cells need           by cell type           control
+     as the answer key          values (ATAC-only)
+   OUT                        OUT                        OUT                    OUT
+   · H: cells × 30 numbers    · X: cells × all genes     · TF, target, score    · AUPRC, early
+   · dataset → row range      · mask: measured/guessed   · cells used, 3 seeds    precision,
+   · no genes, no imputation  · one normalization        · one network            stability
+                                                          per cell type         · a verdict
 ```
+
+Three phrases in step 2's input are worth defining once, because they are the whole of the
+step:
+
+| Phrase in the diagram | What it actually is |
+|---|---|
+| **measured RNA** (also "real RNA") | the gene-expression matrix of the cells that *have* RNA — the multiome cells. It is the only source of the values that get copied onto ATAC cells. Called "measured" only to distinguish it from the guessed values. |
+| **which cells need values** ("ATAC row list") | the row numbers of `X` that belong to ATAC-only cells. They have no measurement, so they are the rows to be filled in. Without this list you cannot say which rows of the output are guesses. |
+| **paired cells set aside as the answer key** ("held out", "frozen") | a set of cells measured *both* ways, whose RNA we hide from the imputer and compare against afterwards. "Frozen" means: chosen once, recorded, and never allowed into the imputer's reference set or any fitting — otherwise the comparison is against something the method already saw. This is the test set for steps 1 and 2. |
 
 Each column's output is literally the next column's input. That is the whole design: there
 are only two objects to inspect, `H` and `X`, and both can be inspected without running a
@@ -193,9 +206,9 @@ On failure: change the integrator. Do not touch later steps.
 ATAC cells have no RNA measured. Step 2 produces a gene vector for them, so that every cell
 — paired or not — can enter one matrix.
 
-The simplest version: take one ATAC cell, find the 20 real RNA cells closest to it in `H`,
-average their expression, and call that the cell's expression. That is the whole idea, and it
-is also where the risk lives.
+The simplest version: take one ATAC cell, find the 20 measured-RNA cells closest to it in
+`H`, average their expression, and call that the cell's expression. That is the whole idea,
+and it is also where the risk lives.
 
 ### Why averaging is dangerous
 
@@ -224,10 +237,10 @@ Consequences 1–3 can all be measured directly. That is what the metrics below 
 | Item | Shape / form | Why it is needed |
 |---|---|---|
 | `H.npy` + `blocks.json` | cells × 30 | the lookup space, from step 1 |
-| real RNA | cells × genes, **one** gene axis | the values being copied |
-| one normalization | declared, e.g. log1p CPM/1e4 | real and guessed rows must be on the same scale |
-| ATAC row list | indices | which rows are being filled |
-| held-out paired cells | frozen index | never part of the reference, or the test is void |
+| measured RNA | cells × genes, **one** gene axis | the values being copied onto the ATAC cells |
+| one normalization | declared, e.g. log1p CPM/1e4 | measured and guessed rows must be on the same scale |
+| which cells need values | row indices of the ATAC-only cells | these are the rows of `X` being filled in |
+| answer-key cells | paired cells, fixed and excluded from fitting | the hidden RNA we compare against afterwards; if they enter the reference, the test is void |
 
 Two details that cause silent failures: the gene axis is written to a file once and never
 re-derived (two experiments on 36,601 and 21,932 genes produce numbers that cannot be
@@ -242,7 +255,7 @@ between the two becomes a batch covariate that the network model will happily le
 | `genes.txt` | one line per gene | written once |
 | `mask.npy` | cells × genes, bool | per cell per gene: measured or guessed |
 | `norm.txt` | the one normalization | applied to both kinds of row |
-| frozen reference set | cell indices | so the held-out test stays honest |
+| reference set actually used | cell indices | proof the answer key was never inside it |
 
 The mask is what makes step 2 testable. Without it, nothing downstream can point at a row
 and say "that one is an average", so nobody can ask whether the averages helped. With it,
@@ -272,10 +285,10 @@ Six metrics. The first is the one that matters for this project.
 
 | Metric | What it asks | Ground truth | Direction | Source |
 |---|---|---|---|---|
-| **pFCS** | is the gene–gene **correlation structure** preserved? | held-out cells | higher better | benchmark imputation task |
-| MSE | how far is the guess from the real answer? | held-out cells | lower better | benchmark imputation task |
-| pDES | are differential-expression statistics preserved? | held-out cells + labels | higher better | benchmark imputation task |
-| gene-wise ρ | per-gene Pearson / Spearman | held-out cells | 0.155–0.22 published ceiling | Polarbear / BABEL |
+| **pFCS** | is the gene–gene **correlation structure** preserved? | answer-key cells | higher better | benchmark imputation task |
+| MSE | how far is the guess from the real answer? | answer-key cells | lower better | benchmark imputation task |
+| pDES | are differential-expression statistics preserved? | answer-key cells + labels | higher better | benchmark imputation task |
+| gene-wise ρ | per-gene Pearson / Spearman | answer-key cells | 0.155–0.22 published ceiling | Polarbear / BABEL |
 | densification | nonzero fraction of guessed rows vs real rows | real-row distribution | should not inflate | own script |
 | downstream | 5 classification + 5 clustering metrics on the imputed data | labels | as the benchmark defines | benchmark imputation task |
 
@@ -313,8 +326,8 @@ Failure signatures visible in the network, with no ground truth needed:
 | edges present in both directions | symmetric smoothing |
 | very large network with a flat ranking | same |
 
-On failure: replace the imputer, or drop step 2 entirely and give step 3 real RNA plus gene
-activity. That second option is legitimate — see the next section.
+On failure: replace the imputer, or drop step 2 entirely and give step 3 the measured RNA
+plus gene activity. That second option is legitimate — see the next section.
 
 ---
 
