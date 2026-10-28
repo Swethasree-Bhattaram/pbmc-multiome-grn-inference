@@ -1,6 +1,6 @@
 # Deck notes: from multiome data to a gene regulatory network
 
-Companion to `reports/pipeline-workflow-design.pptx` (20 slides) and to
+Companion to `reports/pipeline-workflow-design.pptx` (28 slides) and to
 `reports/pipeline-workflow-design.md`.
 
 Each slide below gives the text that goes **on the slide**, followed by the **speaker notes**.
@@ -415,7 +415,231 @@ Three truth tiers, following BEELINE: synthetic networks (complete, artificial),
 
 ---
 
-## Slide 16 — Validation of the pipeline itself
+## Slide 16 — Six ways to get from multiome data to a network
+
+**On the slide**
+
+Only way 1 keeps a separate, gateable embedding — the others buy scale or justification
+
+| Way | What it produces | What the GRN sees | Scales to | Main risk |
+|---|---|---|---|---|
+| 1  integrate, then impute from H | a joint embedding H, then a gene × cell matrix | measured + imputed RNA, all cells | OT to 1M cells | the last-mile transfer is bespoke code |
+| 2  one joint model does both | imputed RNA straight from raw RNA + ATAC | measured + imputed RNA, all cells | minibatch training | no H to gate; ATAC→RNA ceiling ≈ 0.22 |
+| 3  gene activity, no translation | ATAC projected onto the gene axis | measured RNA + gene activity, all cells | sparse matmul, linear | mixes two different quantities in one matrix |
+| 4  multiome-native network | TF→target edges with enhancer support | peaks + motifs, no gene × cell matrix | ~10⁵ cells in practice | needs motifs + peak–gene links; heavy |
+| 5  aggregate first | metacells or pseudobulk groups | few thousand pseudo-cells | collapses 1M → 10³–10⁴ | loses per-cell resolution |
+| 6  TF activity as the regulator side | per-cell TF motif activity from ATAC | TF activity + measured RNA targets | sparse, linear | activity is a motif proxy, not expression |
+
+**Speaker notes**
+
+> This is the survey part of the talk, and the point is that the architecture is a choice, not a given. Six routes exist in the literature to get from multiome data to a network. Only the first produces a separate embedding you can inspect and grade. The others trade that for scale, for accuracy, for a better-justified network, or for avoiding imputed values altogether. The columns that matter are the third and fourth: what the GRN actually sees, and how far the route scales. At a million cells the fourth column is what decides, and most of these routes scale without any optimal transport at all.
+
+---
+
+## Slide 17 — Way 1 — integrate, then impute from the embedding
+
+**On the slide**
+
+The architecture in this deck: H is an artifact, and both steps can be graded
+
+**integrate** — OT / manifold alignment → H
+
+**weight** — kNN or OT over reference cells
+
+**impute** — X = reference RNA @ weights
+
+**GRN** — one network on all cells
+
+Methods: scSAGA, Pamona, SCOT for H. The transfer is yours — no published tool does ATAC→RNA from H (LIGER's imputeKNN runs the opposite direction).
+
+**What the GRN receives** — A gene × cell matrix where ATAC cells carry a weighted average of their nearest reference cells. Rows are flagged measured vs guessed by the mask.
+
+**Scale** — OT to 1M cells; imputation is one sparse matmul; the GRN is the bottleneck.
+
+**Main risk** — Error compounds silently: a poor H gives a plausible-looking average, and the network cannot tell you which step was wrong.
+
+CHOOSE IT WHEN  you need each step graded on its own, and you can afford a custom transfer step.
+
+**Speaker notes**
+
+> This is the architecture the rest of the deck describes, and its virtue is attributability: H is a file, the transfer is a separate step, and each can be graded before the next runs. Its cost is the last mile. No published tool takes H and gives back gene expression for ATAC cells - LIGER's imputer runs the opposite direction, and moscot, SCOT and Symphony give you weights or a projection and leave the average to you. So the transfer is code we own and have to validate ourselves.
+
+---
+
+## Slide 18 — Way 2 — let one model do integration and imputation
+
+**On the slide**
+
+The model integrates internally, so there is nothing in the middle to hand over
+
+**fit** — VAE / diffusion on raw RNA + ATAC
+
+**latent** — the model's own joint space
+
+**impute** — decode RNA for ATAC cells
+
+**GRN** — one network on all cells
+
+Methods: MultiVI, GLUE, scGALA, scDCT, scButterfly, Polarbear.
+
+**What the GRN receives** — The same gene × cell matrix as way 1, produced in one fit. Quality is whatever the model's decoder gives — typically ≈ 0.22 gene-wise Pearson at best.
+
+**Scale** — Minibatch training scales to millions; inference is a forward pass.
+
+**Main risk** — No H artifact, so the step-1 gate has to be applied to the model's internal embedding. Four steps become three.
+
+CHOOSE IT WHEN  benchmark performance matters more than per-step attributability.
+
+**Speaker notes**
+
+> Here the integration happens inside the model, so there is nothing in the middle to hand over. These are the methods with the best published numbers on imputation, and training is minibatched so a million cells is a compute question rather than an algorithmic one. The cost is that the four-step diagram becomes three: there is no H artifact, so the step-1 gate has to be applied to the model's internal embedding, and you cannot point at the space the neighbours were found in.
+
+---
+
+## Slide 19 — Way 3 — skip translation: gene activity on the gene axis
+
+**On the slide**
+
+No imputation at all — ATAC is projected onto genes and stacked
+
+**score** — ATAC → gene activity per gene
+
+**stack** — measured RNA + gene activity
+
+**mask** — flag which rows are which
+
+**GRN** — one network on all cells
+
+Methods: ArchR addGeneScoreMatrix, Signac GeneActivity — both scale with sparse matrix multiplication.
+
+**What the GRN receives** — A gene × cell matrix where ATAC cells carry accessibility-derived scores rather than guessed expression. Same gene axis as RNA, so no axis problem at all.
+
+**Scale** — Linear in cells and peaks; 1M cells is routine.
+
+**Main risk** — Gene activity is not expression: distal enhancers outside the window are lost, and the score correlates with expression, which flatters every downstream metric.
+
+CHOOSE IT WHEN  you want scale and honesty, and you can label the ATAC rows as a different quantity.
+
+**Speaker notes**
+
+> This route removes the hardest step instead of solving it. ATAC is projected onto the gene axis by summing accessibility over each gene body and promoter, so the ATAC cells already have values for every gene and no translation is needed. It is a sparse matrix multiplication, so it is linear and a million cells is routine. What you give up is meaning: gene activity is not expression, distal enhancers outside the window are lost, and the score correlates with expression, which flatters every metric computed against RNA. The mask matters more here than anywhere else, because the two row types are genuinely different quantities.
+
+---
+
+## Slide 20 — Way 4 — no gene × cell matrix at all: a multiome-native network
+
+**On the slide**
+
+Chromatin stays chromatin; the network is built from peaks, motifs and links
+
+**peaks** — ATAC + RNA per cell
+
+**links** — peak → gene, motif → TF
+
+**network** — TF→target with enhancer support
+
+**grade** — regulons, perturbation
+
+Methods: SCENIC+, LINGER, HuMMuS, scMEGA, FigR.
+
+**What the GRN receives** — TF→target edges with the enhancers that justify them. No per-cell gene values, so there is nothing to impute and nothing to get wrong in translation.
+
+**Scale** — Peak–gene linking and motif enrichment dominate; practical at ~10⁵ cells.
+
+**Main risk** — Heavier pipeline and more moving parts; the output is a network, not a matrix you can hand to an arbitrary GRN method.
+
+CHOOSE IT WHEN  the network itself is the deliverable and you want the ATAC evidence in it.
+
+**Speaker notes**
+
+> The most direct route: never build the matrix. Peaks, motifs and peak-gene links go straight into a network, so there is no translation and nothing to get wrong in it. The output is TF-target edges with the enhancers that justify them, which is a better artifact than an unsigned importance matrix. The costs are practical: motif databases and peak-gene linking are needed, the pipeline has more moving parts, and the practical ceiling is around a hundred thousand cells because motif enrichment and peak-gene correlation dominate the runtime.
+
+---
+
+## Slide 21 — Way 5 — aggregate first, then infer
+
+**On the slide**
+
+Change the unit of inference, not the method
+
+**aggregate** — metacells or pseudobulk
+
+**10³–10⁴** — pseudo-cells
+
+**GRN** — any method, cheaply
+
+**grade** — population-level truth
+
+Methods: SEACells, MetaCell for metacells; pseudobulk by cell type × donor.
+
+**What the GRN receives** — A small matrix of pseudo-cells, which any GRN method handles. Dropout is reduced and the network is far more reproducible.
+
+**Scale** — Collapses 1M cells to 10³–10⁴ units, so scaling stops being the binding constraint.
+
+**Main risk** — Loses per-cell resolution — you can no longer ask which cell drives an edge, and regulatory heterogeneity within a cell type is averaged away.
+
+CHOOSE IT WHEN  the deliverable is a network, not per-cell values — this is the cheapest route to scale.
+
+**Speaker notes**
+
+> This one changes the unit of inference instead of the method. Metacells or pseudobulk groups collapse a million cells into a few thousand units, after which any GRN method is cheap and the dropout problem shrinks. It is also the route with the best evidence for reproducibility: population-level comparisons are far more stable than single-cell-level ones. The thing you give up is per-cell resolution - you can no longer say which cell drives an edge, and heterogeneity within a cell type is averaged away. If the deliverable is a network rather than per-cell values, that is usually a good trade.
+
+---
+
+## Slide 22 — Way 6 — substitute the regulator side with TF activity
+
+**On the slide**
+
+ATAC contributes TFs, RNA contributes targets
+
+**activity** — chromVAR on ATAC → per-cell TF activity
+
+**targets** — measured RNA, all RNA cells
+
+**link** — activity → target regression
+
+**network** — TF→target
+
+Methods: chromVAR for activity; FigR for motif-anchored TF–gene linking.
+
+**What the GRN receives** — A TF × cell activity matrix plus measured expression. The network is regressed from activity onto targets, so no gene values are ever imputed.
+
+**Scale** — chromVAR is sparse and linear; activity is cheap at 1M cells.
+
+**Main risk** — TF activity is a motif-accessibility proxy, not TF expression — the two are related but not the same, and benchmarks rarely treat them as interchangeable.
+
+CHOOSE IT WHEN  you distrust imputed expression and want the regulator side to come from chromatin.
+
+**Speaker notes**
+
+> Here the two modalities contribute different halves of the regression: ATAC gives the regulators as per-cell motif activity, RNA gives the targets as measured expression. No gene values are imputed at all, which is the attraction if you distrust imputed expression. chromVAR is sparse and linear so this scales comfortably. The caveat is semantic: motif activity measures how accessible a TF's binding sites are, not how much TF protein is present, and those are related but not interchangeable. It is a different quantity from expression, and should be reported as such.
+
+---
+
+## Slide 23 — How to choose between the ways
+
+**On the slide**
+
+They compose — and the binding constraint decides
+
+| If the binding constraint is… | Take | Because |
+|---|---|---|
+| per-step attributability | way 1 | the only route with an H artifact and a separate transfer step |
+| raw benchmark accuracy of the imputation | way 2 | end-to-end training beats translation tacked onto a fixed embedding |
+| scale, with no custom code | way 3 or 5 | a sparse matmul or an aggregation — both are linear, neither needs OT |
+| a defensible network rather than a matrix | way 4 | the ATAC evidence stays in the model and regulons become the unit |
+| you do not trust imputed values at all | way 6 or 4 | neither one ever produces imputed gene expression |
+
+They compose. Ways 3, 5 and 6 can be stacked: gene activity for the ATAC rows, aggregated into metacells, with TF activity as a second regulator view. That combination needs no optimal transport, no deep model and no custom transfer, which is what makes it the natural candidate at 10⁶ cells.
+Way 1 is the only one where every step can be graded independently — which is the reason this deck describes it in detail. That is a design trade, not a claim that it is the most accurate.
+
+**Speaker notes**
+
+> The decision rule is to name the binding constraint first. If it is attributability, way 1 is the only option. If it is raw imputation accuracy, way 2 wins on benchmarks. If it is scale with no custom code, ways 3 and 5 are linear and need no optimal transport. If the deliverable is a defensible network rather than a matrix, way 4. And the routes compose: gene activity for the ATAC rows, aggregated into metacells, with TF activity as a second regulator view, needs no OT, no deep model and no custom transfer. That combination is the natural candidate at a million cells, and it is worth saying out loud that way 1 is not the most accurate route - it is the most inspectable one.
+
+---
+
+## Slide 24 — Validation of the pipeline itself
 
 **On the slide**
 
@@ -444,7 +668,7 @@ scMultiSim: Nat Methods 2025, 10.1038/s41592-025-02651-0.   For plausibility on 
 
 ---
 
-## Slide 17 — How the steps fit together
+## Slide 25 — How the steps fit together
 
 **On the slide**
 
@@ -466,7 +690,7 @@ A pipeline is four steps where each output has been shown good enough to be the 
 
 ---
 
-## Slide 18 — Run order and cost
+## Slide 26 — Run order and cost
 
 **On the slide**
 
@@ -489,7 +713,7 @@ Everything except step 3 runs on CPU in hours
 
 ---
 
-## Slide 19 — What good looks like
+## Slide 27 — What good looks like
 
 **On the slide**
 
@@ -516,7 +740,7 @@ _[chart: ATAC→RNA gene-wise Pearson — published ceiling]_
 
 ---
 
-## Slide 20 — Summary
+## Slide 28 — Summary
 
 **On the slide**
 
