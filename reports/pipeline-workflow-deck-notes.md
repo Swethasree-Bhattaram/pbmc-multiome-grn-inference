@@ -195,23 +195,22 @@ Same three kinds of output; these differ in what prior they use
 
 ---
 
-## Slide 7 — Step 2 — Imputation: why this step is risky
-
-*Averaging is smoothing, and smoothing manufactures correlation*
+## Slide 7 — Step 1 — Integration: how good is it?
 
 **On the slide**
 
-**1  Zeros disappear** — An average of 20 cells is rarely zero, so guessed cells look richer than measured ones.
+Four metrics; the first needs paired cells and is the strictest
 
-**2  Correlations inflate** — Two genes present in the same neighbourhood become correlated, because we averaged them, not because a TF links them.
+| Metric | What it asks | Truth needed | Good looks like |
+|---|---|---|---|
+| FOSCTTM | for each cell, what fraction of other cells are closer to it than its true cross-modal partner is? | paired cells, held out | 0 = perfect, 0.5 ≈ random. Published: 0.14–0.16 (MMD-MA), 0.22 (UnionCom), 0.39 (unnormalized) |
+| label conservation | are cell types still separated? ARI, NMI, cLISI, silhouette, isolated-label F1, graph connectivity | cell-type labels | close to unintegrated labels, far from a shuffled control |
+| batch correction | are datasets mixed? kBET, iLISI, batch silhouette | dataset IDs | improves while the label metrics hold |
+| label transfer | can a label learned on RNA be assigned to the ATAC half? | paired cells + labels | > 0.85 on major lineages |
 
-**3  The block is detectable** — Guessed rows have a different distribution from measured rows, so a model can separate the two.
+**PASS IF** — FOSCTTM below the shuffled-partner control  +  label transfer > 0.85  +  batch metrics up while label metrics hold.   Not a gate: scSAGA's 'global alignment score' — it moves with the anchor.
 
-**4  The GRN chases 1–3** — A model that ranks genes by mutual predictability ranks the inflated correlations first.
-
-**The visible signature of consequence 4** — a network whose strongest links are housekeeping genes (ribosomal, mitochondrial, HLA), because those are high and correlated in every neighbourhood.
-
-Not hypothetical: Dijkstra et al., *Patterns* 2022 (10.1016/j.patter.2021.100414) measured networks before and after imputation and found inflated gene–gene correlations, altered network structure, and a possible decrease in reconstruction performance.
+scib implements the middle two rows (14 metrics). Report both halves separately — a single combined score hides the batch-versus-biology trade (Luecken et al., Nat Methods 2022).
 
 **Speaker notes**
 
@@ -219,42 +218,7 @@ Not hypothetical: Dijkstra et al., *Patterns* 2022 (10.1016/j.patter.2021.100414
 
 ---
 
-## Slide 8 — Step 2 — Imputation: why this step is risky
-
-**On the slide**
-
-Averaging is smoothing, and smoothing manufactures correlation
-
-1  Zeros disappear
-An average of 20 cells is rarely zero.
-Guessed cells look richer than measured ones.
-
-2  Correlations inflate
-Two genes present in the same neighbourhood
-become correlated — because we averaged them,
-not because a TF links them.
-
-3  The block is detectable
-Guessed rows have a different distribution
-from measured rows, so a model can
-separate the two.
-
-4  The GRN chases 1–3
-A model that ranks genes by mutual
-predictability ranks the inflated
-correlations first.
-
-**The visible signature of consequence 4** — A network whose strongest links are housekeeping genes — ribosomal, mitochondrial, HLA — because those are high and correlated in every neighbourhood.
-
-Not hypothetical: Dijkstra et al., Patterns 2022 (10.1016/j.patter.2021.100414) measured networks before and after imputation and found inflated gene–gene correlations, altered network structure, and a possible decrease in reconstruction performance.
-
-**Speaker notes**
-
-> This is the mechanism, and it is why the metrics on the next slides matter. Averaging is smoothing, and smoothing manufactures correlation. Whatever truly regulates what, the smoothed matrix insists these genes always appear together, and the boosting model believes it. Housekeeping genes are high and correlated in every neighbourhood, so they surface at the top of the ranking.
-
----
-
-## Slide 9 — Step 2 — Imputation: input and output
+## Slide 8 — Step 2 — Imputation: input and output
 
 **On the slide**
 
@@ -280,7 +244,7 @@ One gene axis, one normalization, one frozen held-out set
 
 ---
 
-## Slide 10 — Step 2 — Imputation: methods
+## Slide 9 — Step 2 — Imputation: methods
 
 **On the slide**
 
@@ -288,7 +252,7 @@ The published ceiling for this task is low — expect 0.2, not 0.9
 
 | Method | In plain words | Choose it when | Citation |
 |---|---|---|---|
-| kNN average | average the 20 nearest RNA cells | simplest; see the cost on the previous slide | this repo |
+| kNN average | average the 20 nearest RNA cells | simplest; the next slide shows what it costs | this repo |
 | scGALA | step-1 alignment plus a learned mapper | closest drop-in for alignment-then-map | Nat Commun 2025 |
 | scDCT | conditional diffusion, both directions | topology preservation matters most | Brief Bioinform 2025 |
 | Cisformer | pretrained; 10,000 open regions per cell | more than ~30k cells | Genome Biol 2025 |
@@ -301,6 +265,30 @@ The published ceiling for this task is low — expect 0.2, not 0.9
 **Speaker notes**
 
 > The ceiling is low. Polarbear reports about 0.22 gene-wise Pearson for ATAC to RNA, BABEL about 0.155. If a method reports 0.9, suspect leakage rather than excellence. If it reports 0.05, the step produced nothing. Both are knowable in an afternoon.
+
+---
+
+## Slide 10 — Step 2 — Imputation: what averaging does to the matrix
+
+*The cheap option fails in a predictable way — this is the mechanism*
+
+**On the slide**
+
+**1  Zeros disappear** — An average of 20 cells is rarely zero, so guessed cells look richer than measured ones.
+
+**2  Correlations inflate** — Two genes present in the same neighbourhood become correlated, because we averaged them, not because a TF links them.
+
+**3  The block is detectable** — Guessed rows have a different distribution from measured rows, so a model can separate the two.
+
+**4  The GRN chases 1–3** — A model that ranks genes by mutual predictability ranks the inflated correlations first.
+
+**The visible signature of consequence 4** — a network whose strongest links are housekeeping genes (ribosomal, mitochondrial, HLA), because those are high and correlated in every neighbourhood.
+
+Not hypothetical: Dijkstra et al., *Patterns* 2022 (10.1016/j.patter.2021.100414) measured networks before and after imputation and found inflated gene–gene correlations, altered network structure, and a possible decrease in reconstruction performance.
+
+**Speaker notes**
+
+> This is the mechanism, and it is why the metrics on the next slides matter. Averaging is smoothing, and smoothing manufactures correlation. Whatever truly regulates what, the smoothed matrix insists these genes always appear together, and the boosting model believes it. Housekeeping genes are high and correlated in every neighbourhood, so they surface at the top of the ranking.
 
 ---
 
@@ -321,7 +309,7 @@ Lead with pFCS — it is the one metric that matches what step 3 reads
 
 **NEGATIVE CONTROL** — repeat the measurement with randomized neighbours. If the control scores as well, the metric describes the data, not the imputation.
 
-MSE alone is not enough: a blurred matrix can have low error and still destroy correlation structure.   Definitions follow the imputation task in Liu et al., Nat Methods 2025; scIMC (NAR 2022) and the scTranslation benchmark (ACM SIGKDD 2026) are ready-made harnesses.
+Definitions follow the imputation task in Liu et al., Nat Methods 2025; scIMC (NAR 2022) and the scTranslation benchmark (ACM SIGKDD 2026) are ready-made harnesses.
 
 **Speaker notes**
 
@@ -477,19 +465,26 @@ Everything except step 3 runs on CPU in hours
 
 ---
 
-## Slide 18 — Summary
+## Slide 18 — What good looks like
 
 **On the slide**
 
-**1  INTEGRATION**: graded by FOSCTTM and the scIB label/batch metrics; needs paired cells, which multiome data provides.
+Set before running anything, so the result cannot be reinterpreted
 
-**2  IMPUTATION**: graded by pFCS above all, then MSE and gene-wise ρ, against a shuffled-reference control.
+| Metric | A good result |
+|---|---|
+| FOSCTTM | 0.14–0.22 (published range); 0.5 is random; 0 is perfect |
+| gene-wise ρ, ATAC→RNA | 0.155–0.22 — not 0.9, which suggests leakage |
+| pFCS | high, and clearly above the shuffled-reference control |
+| MSE | clearly below the same control |
+| densification | guessed rows no denser than measured rows |
+| network stability | reported differences exceed seed-to-seed noise |
+| AUPRC / early precision | above the negative control, on cell-type-matched truth |
+| lineage regulators | present in the top edges of every cell-type network |
 
-**3  GRN**: graded by AUPRC and early precision on cell-type-matched truth, with seed stability reported first.
+_[chart: FOSCTTM — lower is better]_
 
-**4  VALIDATION**: the whole pipeline graded once on simulated data with a known network, before real biology.
-
-For every step here there is a published, calibrated way to measure it — three of the four are cheap, because multiome data hands us the answer.
+_[chart: ATAC→RNA gene-wise Pearson — published ceiling]_
 
 **Speaker notes**
 
@@ -501,21 +496,13 @@ For every step here there is a published, calibrated way to measure it — three
 
 **On the slide**
 
-**1  INTEGRATION**
+**1  INTEGRATION**: graded by FOSCTTM and the scIB label/batch metrics; needs paired cells, which multiome data provides.
 
-graded by FOSCTTM and the scIB label/batch metrics — needs paired cells, which multiome data provides
+**2  IMPUTATION**: graded by pFCS above all, then MSE and gene-wise ρ, against a shuffled-reference control.
 
-**2  IMPUTATION**
+**3  GRN**: graded by AUPRC and early precision on cell-type-matched truth, with seed stability reported first.
 
-graded by pFCS above all, then MSE and gene-wise ρ, against a shuffled-reference control
-
-**3  GRN**
-
-graded by AUPRC and early precision on cell-type-matched truth, with seed stability reported first
-
-**4  VALIDATION**
-
-the whole pipeline graded once on simulated data with a known network, before real biology
+**4  VALIDATION**: the whole pipeline graded once on simulated data with a known network, before real biology.
 
 For every step here there is a published, calibrated way to measure it — three of the four are cheap, because multiome data hands us the answer.
 

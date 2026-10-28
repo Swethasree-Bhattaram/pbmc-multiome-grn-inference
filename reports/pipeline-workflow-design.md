@@ -259,28 +259,6 @@ The simplest version: take one ATAC cell, find the 20 measured-RNA cells closest
 `H`, average their expression, and call that the cell's expression. That is the whole idea,
 and it is also where the risk lives.
 
-### Why averaging is dangerous
-
-Averaging is smoothing, and smoothing manufactures correlation. Four consequences, in order:
-
-| # | What happens | Why it matters |
-|---|---|---|
-| 1 | Zeros disappear | an average of 20 cells is rarely zero, so guessed cells look "richer" than real ones |
-| 2 | Correlations inflate | any two genes present in the same neighbourhood become correlated — because we averaged them, not because a TF links them |
-| 3 | The block is detectable | guessed rows have a different distribution from real rows; a model can separate them |
-| 4 | The GRN chases 1–3 | a model that ranks genes by how well they predict each other ranks inflated correlations first |
-
-The visible signature of consequence 4 is a network whose strongest links are housekeeping
-genes — ribosomal, mitochondrial, HLA — because those are high and correlated in every
-neighbourhood.
-
-This is not a hypothetical concern. Dijkstra et al., *Patterns* 2022
-(10.1016/j.patter.2021.100414) evaluated networks before and after imputation and found
-inflated gene–gene correlations, altered network structure, and a possible decrease in
-reconstruction performance.
-
-Consequences 1–3 can all be measured directly. That is what the metrics below do.
-
 ### Input
 
 | Item | Shape / form | Why it is needed |
@@ -332,6 +310,28 @@ The published ceiling for this task is low. Polarbear reports ATAC→RNA gene-wi
 about 0.22, BABEL about 0.155, on SNARE-seq. Two consequences: a method claiming 0.9
 correlation is more likely leaking than excellent, and a method reporting 0.05 has produced
 nothing. Both are knowable in an afternoon.
+
+### What averaging does to the matrix
+
+Averaging is smoothing, and smoothing manufactures correlation. Four consequences, in order:
+
+| # | What happens | Why it matters |
+|---|---|---|
+| 1 | Zeros disappear | an average of 20 cells is rarely zero, so guessed cells look "richer" than real ones |
+| 2 | Correlations inflate | any two genes present in the same neighbourhood become correlated — because we averaged them, not because a TF links them |
+| 3 | The block is detectable | guessed rows have a different distribution from real rows; a model can separate them |
+| 4 | The GRN chases 1–3 | a model that ranks genes by how well they predict each other ranks inflated correlations first |
+
+The visible signature of consequence 4 is a network whose strongest links are housekeeping
+genes — ribosomal, mitochondrial, HLA — because those are high and correlated in every
+neighbourhood.
+
+This is not a hypothetical concern. Dijkstra et al., *Patterns* 2022
+(10.1016/j.patter.2021.100414) evaluated networks before and after imputation and found
+inflated gene–gene correlations, altered network structure, and a possible decrease in
+reconstruction performance.
+
+Consequences 1–3 can all be measured directly. That is what the metrics below do.
 
 ### How we measure it
 
