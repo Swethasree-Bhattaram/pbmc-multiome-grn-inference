@@ -648,6 +648,8 @@ integrate → H                                   weight → kNN or OT over refe
 impute    → X = reference RNA @ weights         GRN    → one network on all cells
 ```
 
+- **In → out:** per-dataset PCA → `H` → weights (kNN or OT) → `X` (cells × genes) → edges
+
 - **The GRN receives:** a gene × cell matrix where ATAC cells carry a weighted average of their
   nearest reference cells, with the mask recording which rows are guesses.
 - **Methods:** scSAGA, Pamona, SCOT for `H`. The transfer is yours — no published tool does
@@ -664,6 +666,8 @@ fit → VAE / diffusion on raw RNA + ATAC         latent → the model's own joi
 impute → decode RNA for ATAC cells              GRN    → one network on all cells
 ```
 
+- **In → out:** raw counts + modality mask → latent `z` → decoded `X` → edges
+
 - **The GRN receives:** the same kind of matrix as way 1, produced in one fit. Quality is
   whatever the decoder gives — at best ≈ 0.22 gene-wise Pearson for this task.
 - **Methods:** MultiVI, GLUE, scGALA, scDCT, scButterfly, Polarbear.
@@ -678,6 +682,8 @@ impute → decode RNA for ATAC cells              GRN    → one network on all 
 score → ATAC → gene activity per gene           stack → measured RNA + gene activity
 mask  → flag which rows are which               GRN   → one network on all cells
 ```
+
+- **In → out:** peaks + annotation → gene activity → `X` on the shared gene axis → edges
 
 - **The GRN receives:** a gene × cell matrix where ATAC cells carry accessibility-derived scores
   rather than guessed expression. The gene axis is shared, so there is no axis problem.
@@ -696,6 +702,8 @@ peaks   → ATAC + RNA per cell                    links → peak→gene, motif�
 network → TF→target with enhancer support       grade → regulons, perturbation
 ```
 
+- **In → out:** peaks + motifs → peak–gene links → TF→target edges with enhancer support → regulons
+
 - **The GRN receives:** TF→target edges with the enhancers that justify them. There are no
   per-cell gene values, so nothing needs imputing.
 - **Methods:** SCENIC+, LINGER, HuMMuS, scMEGA, FigR.
@@ -710,6 +718,8 @@ network → TF→target with enhancer support       grade → regulons, perturba
 aggregate → metacells or pseudobulk            10³–10⁴ pseudo-cells
 GRN       → any method, cheaply                grade → population-level truth
 ```
+
+- **In → out:** cell × gene matrix + group assignment → 10³–10⁴ pseudo-cells → edges
 
 - **The GRN receives:** a small matrix of pseudo-cells, which any GRN method handles. Dropout is
   reduced and the network is far more reproducible.
@@ -726,6 +736,8 @@ GRN       → any method, cheaply                grade → population-level trut
 activity → chromVAR on ATAC → per-cell TF activity    targets → measured RNA
 link     → activity onto target regression            network → TF→target
 ```
+
+- **In → out:** peaks + motif matches → TF × cell activity → TF→target regression → edges
 
 - **The GRN receives:** a TF × cell activity matrix plus measured expression. The network is
   regressed from activity onto targets, so no gene values are imputed.
