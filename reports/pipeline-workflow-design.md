@@ -176,13 +176,20 @@ Every method below returns one of three things:
 | **Matching** | a cell-to-cell probability matrix saying which cells across datasets correspond | must first be turned into a neighbour list (take the best match per cell) or a joint embedding (average the matched cells); say which |
 | **Imputed expression** | a genes × cells matrix for the modality that was missing | step 2 is already done — skip it |
 
+One case straddles two categories. SCOT's projection is in *feature* space, not latent space: it
+rewrites the ATAC cells using RNA's gene coordinates. When the target domain is RNA, that
+projection is itself an expression matrix, and it is produced by the same kind of weighted
+average that step 2 computes — only the weights come from optimal transport rather than from
+k nearest neighbours. So SCOT can feed either step 2 (as a starting matrix) or step 3
+directly; which one you claim has to be stated.
+
 ### Methods, part 1 — the workhorses
 
 | Method | What you get out | Reference |
 |---|---|---|
 | scSAGA | joint embedding (cells × 30) + the matching it was computed from | Aluru lab, scSAGA; bioRxiv 2026, 10.64898/2026.03.26.714573 |
 | Pamona | joint embedding + matching; also labels cells as shared or dataset-specific | Cao, Hong, Wan, *Bioinformatics* 2021, 10.1093/bioinformatics/btab594 |
-| SCOT | matching + a joint embedding per dataset | Demetci et al., RECOMB 2020 |
+| SCOT | matching + one dataset rewritten in the *other* dataset's feature space (barycentric projection); no low-dimensional embedding. Version 2 offers other projection choices | Demetci et al., RECOMB 2020 |
 | LIGER | joint embedding (cells × k) + per-dataset gene loadings (genes × k); ships its own `imputeKNN` | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
 | Seurat v5 | joint embedding (cells × k); can also produce predicted expression for the other modality | Hao et al., *Cell* 2021, 10.1016/j.cell.2021.04.048 |
 | Harmony | joint embedding (cells × k); nothing else | Korsunsky et al., *Nat Methods* 2019, 10.1038/s41592-019-0619-0 |
