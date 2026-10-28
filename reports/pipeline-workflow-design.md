@@ -296,15 +296,33 @@ step 2 earns its place.
 
 ### Methods
 
-| Method | In plain words | Choose it when | Reference |
+Only the first row consumes step 1's embedding. The rest take the raw matrices and learn their
+own joint space internally, which has a design consequence stated after the table.
+
+| Method | What it consumes | Kind of model | Reference |
 |---|---|---|---|
-| kNN average | average the 20 nearest RNA cells | simplest; see the table above for the cost | this repo |
-| scGALA | step-1 alignment plus a learned mapper (graph attention) | closest drop-in for an alignment-then-map design | *Nat Commun* 2025, 10.1038/s41467-025-66644-5 |
-| scDCT | conditional diffusion, translation both directions | topology preservation matters most | *Brief Bioinform* 2025, 10.1093/bib/bbaf400 |
-| Cisformer | pretrained; 10,000 open regions per cell | more than ~30k cells | *Genome Biol* 2025, 10.1186/s13059-025-03823-z |
-| scButterfly | two aligned VAEs, paired or unpaired | simplest learned model, good control arm | *Nat Commun* 2024, 10.1038/s41467-024-47418-x |
-| MultiVI | one model does steps 1 and 2 | paired data only | *Nat Methods* 2023, 10.1038/s41592-023-01909-9 |
-| Polarbear | the original semi-supervised translator | the number to beat | *J Comput Biol* 2022, 10.1089/cmb.2022.0264 |
+| kNN average | step 1's `H` + the measured RNA | not learned — a lookup | this repo |
+| scGALA | measured RNA + ATAC **as gene activity** + its own cell alignment (a file of anchor pairs) | graph attention network | *Nat Commun* 2025, 10.1038/s41467-025-66644-5 |
+| scDCT | raw RNA and ATAC matrices; paired or unpaired | conditional diffusion | *Brief Bioinform* 2025, 10.1093/bib/bbaf400 |
+| Cisformer | ATAC only, 10,000 open regions per cell; pretrained | transformer | *Genome Biol* 2025, 10.1186/s13059-025-03823-z |
+| scButterfly | raw RNA and ATAC matrices; paired or unpaired | two VAEs + translator | *Nat Commun* 2024, 10.1038/s41467-024-47418-x |
+| MultiVI | raw RNA and ATAC counts, with a mask for which modality each cell has | joint VAE | *Nat Methods* 2023, 10.1038/s41592-023-01909-9 |
+| Polarbear | raw RNA and ATAC matrices + co-assay cells for the translator | VAE + linear map | *J Comput Biol* 2022, 10.1089/cmb.2022.0264 |
+
+Yes: these are learned models — VAEs, a conditional diffusion model, a transformer, a graph
+attention network — and they all aim at the same output, expression values for genes in cells
+that were not measured for RNA. The kNN average is the only non-learned entry.
+
+**But only the first row takes `H`.** The others consume the raw matrices, because they learn
+their own joint representation inside the model. scGALA is the closest to a drop-in and still
+is not one: it wants reference RNA, ATAC converted to gene activity, and a file of cell-to-cell
+anchors produced by its own alignment. (An optimal-transport plan from step 1 could in
+principle be converted into that anchor file, but that is a converter you would write and
+validate, not a supported path.) The consequence: adopting any of these **merges steps 1 and 2
+into a single model**. That is a legitimate design — often a better one, since the embedding and
+the imputation are then fitted jointly — but then the step-1 gate applies to the model's
+internal embedding rather than to a saved `H`, and there is no `H` file in the middle of the
+pipeline.
 
 The published ceiling for this task is low. Polarbear reports ATAC→RNA gene-wise Pearson of
 about 0.22, BABEL about 0.155, on SNARE-seq. Two consequences: a method claiming 0.9

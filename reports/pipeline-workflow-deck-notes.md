@@ -248,19 +248,21 @@ One gene axis, one normalization, one frozen held-out set
 
 **On the slide**
 
-The published ceiling for this task is low — expect 0.2, not 0.9
+All learned except the first — and only the first uses step 1's embedding
 
-| Method | In plain words | Choose it when | Citation |
+| Method | What it consumes | Kind of model | Citation |
 |---|---|---|---|
-| kNN average | average the 20 nearest RNA cells | simplest; the next slide shows what it costs | this repo |
-| scGALA | step-1 alignment plus a learned mapper | closest drop-in for alignment-then-map | Nat Commun 2025 |
-| scDCT | conditional diffusion, both directions | topology preservation matters most | Brief Bioinform 2025 |
-| Cisformer | pretrained; 10,000 open regions per cell | more than ~30k cells | Genome Biol 2025 |
-| scButterfly | two aligned VAEs, paired or unpaired | simplest learned model; good control arm | Nat Commun 2024 |
-| MultiVI | one model does steps 1 and 2 | paired data only | Nat Methods 2023 |
-| Polarbear | original semi-supervised translator | the number to beat | J Comput Biol 2022 |
+| kNN average | step 1's H + the measured RNA | not learned — a lookup | this repo |
+| scGALA | measured RNA + ATAC as gene activity + its own cell alignment | graph attention network | Nat Commun 2025 |
+| scDCT | raw RNA and ATAC matrices; paired or unpaired | conditional diffusion | Brief Bioinform 2025 |
+| Cisformer | ATAC only, 10,000 open regions per cell; pretrained | transformer | Genome Biol 2025 |
+| scButterfly | raw RNA and ATAC matrices; paired or unpaired | two VAEs + translator | Nat Commun 2024 |
+| MultiVI | raw RNA and ATAC counts, with a mask for which modality each cell has | joint VAE | Nat Methods 2023 |
+| Polarbear | raw RNA and ATAC matrices + co-assay cells for the translator | VAE + linear map | J Comput Biol 2022 |
 
-**CEILING** — ATAC→RNA gene-wise Pearson ≈ 0.22 (Polarbear), 0.155 (BABEL), on SNARE-seq.   0.9 suggests leakage; 0.05 means the step produced nothing.
+ONLY THE kNN ROW USES H  every row except the first learns its own joint space from the raw matrices — so choosing one merges step 1 and step 2 into a single model, and there is no H to hand over
+
+Ceiling for this task: ATAC→RNA gene-wise Pearson ≈ 0.22 (Polarbear), 0.155 (BABEL), on SNARE-seq. 0.9 suggests leakage; 0.05 means nothing was produced.
 
 **Speaker notes**
 
