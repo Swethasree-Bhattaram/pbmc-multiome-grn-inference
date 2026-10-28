@@ -329,6 +329,31 @@ about 0.22, BABEL about 0.155, on SNARE-seq. Two consequences: a method claiming
 correlation is more likely leaking than excellent, and a method reporting 0.05 has produced
 nothing. Both are knowable in an afternoon.
 
+### Methods that accept a precomputed embedding
+
+If steps 1 and 2 are to stay separate — which is what makes the step-1 gate meaningful — the
+imputer must accept `H`. Only a small family does, and every member needs **one companion
+object**, because coordinates alone cannot produce gene values.
+
+| Method | What it consumes | How it turns that into gene values | Checked against |
+|---|---|---|---|
+| `imputeKNN` (rliger / LIGER) | `H.norm` (the aligned factor loadings) + reference expression + a query set | takes the `nNeighbors` nearest reference cells in `H.norm` and averages their expression | rliger `R/ATAC.R`: `RANN::nn2(object@H.norm[reference, ], object@H.norm[query, ], k = nNeighbors)`, after aborting if `H.norm` is missing |
+| reverse-imputeKNN (this repo) | `H` + the reference block + reference expression | same idea, weights `exp(-distance)` | `run.py` |
+| `mapQuery` (Symphony) | a reference object holding the embedding and cluster centroids, plus query expression | projects query cells into the reference embedding, then transfers by nearest reference cells | `R/mapQuery.R` |
+| `project_data` (MOFA+) | trained factors + loadings | projects new cells into the existing factor space, then reconstructs | package API |
+| scArches / online iNMF | a trained model + the new data | projects into the existing latent, then decodes | package API |
+
+The rule that organises the table: **`H` plus reference expression gives an averaging method;
+`H` plus a decoder gives a generative one.** An embedding with neither companion cannot produce
+a genes × cells matrix.
+
+Design consequence, and it is the reason this section exists: choosing from the translator table
+above (scGALA, scDCT, Cisformer, scButterfly, Polarbear, MultiVI) collapses steps 1 and 2 into a
+single model, which is defensible but removes `H` as an inspectable artifact and moves the
+step-1 gate inside that model. Choosing from this table keeps the four-step pipeline and keeps
+the gate where it is. The repo's current design — scSAGA for `H`, then kNN averaging — is in the
+second category and is therefore self-consistent.
+
 ### What averaging does to the matrix
 
 Averaging is smoothing, and smoothing manufactures correlation. Four consequences, in order:
