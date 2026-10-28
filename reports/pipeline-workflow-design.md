@@ -368,15 +368,33 @@ by choosing the target genes to favour known edges — the evaluation is circula
 
 ### Input
 
+Only two things are actually required. The other two are **decisions** that must be recorded,
+not data that must exist — the previous version of this table presented all four as inputs,
+which overstated them.
+
+**Required**
+
 | Item | Form | Why it is needed |
 |---|---|---|
-| `X.npy` + `mask.npy` | cells × genes | from step 2 |
-| regulator list | curated TF list, count recorded | what may appear on the left of an edge |
-| target rule | stated rule, count recorded | what may appear on the right |
-| cell grouping | one network per cell type, or pseudobulk | a single network over mixed cell types is dominated by differences between cell types |
+| `X.npy` + `mask.npy` | cells × genes | the expression matrix from step 2, with the guessed rows flagged |
+| regulator list | curated TF list, count recorded | what may appear on the **left** of an edge; `tf_only.txt` here |
 
-Both counts are written down. Two runs with different target counts produce edge sets that
-cannot be compared, and the difference is invisible unless the counts are recorded.
+**Decisions to record** (each has a default, and the default is what you get if you say nothing)
+
+| Decision | Default if unstated | What it changes | Does it change the cost? |
+|---|---|---|---|
+| target rule | every column is a target (`target_genes='all'`) | which genes are on the **right** of an edge, and the denominator of every metric | yes — one regression per column, so 4,389 vs 36,601 targets is 8.3× the fits |
+| cell grouping | one network over all cells | interpretability and reproducibility: a mixed network is dominated by differences between cell types | yes — N networks instead of 1 |
+
+Neither decision is needed to *run* the step. Both change the output enough that a result
+without them recorded cannot be compared with anything, which is why they belong in the input
+table even though they are choices rather than requirements. If the answer is "all columns,
+one network", write that down — it is a legitimate design, just not the same one as the
+restricted version.
+
+Cell-type labels are needed in any case, because gate 3 checks that lineage regulators appear
+in the top edges of the matching cell type. Grouping the inference by cell type is optional;
+needing the labels is not.
 
 On the grouping choice: "Population-level comparisons of gene regulatory networks modeled on
 high-throughput single-cell transcriptomics data", *Nat Comput Sci* 2024

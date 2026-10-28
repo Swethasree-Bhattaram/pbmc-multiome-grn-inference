@@ -300,20 +300,20 @@ The model does not know which rows were guessed
 
 |  | Item | Shape / form | Why it matters |
 |---|---|---|---|
-| IN | X.npy + mask.npy | cells × genes | from step 2 |
-| IN | regulator list | curated TFs; count recorded | what may appear on the left of an edge |
-| IN | target rule | stated rule; count recorded | what may appear on the right |
-| IN | cell grouping | one network per cell type, or pseudobulk | a mixed network is dominated by cell-type differences |
+| REQUIRED | X.npy + mask.npy | cells × genes | the matrix from step 2, guessed rows flagged |
+| REQUIRED | regulator list | curated TFs; count recorded | what may appear on the left of an edge |
+| DECIDE | target rule | default: every column; or a stated rule | the column set IS the target list — changes cost 8× |
+| DECIDE | cell grouping | default: one network; or per cell type | a mixed network is dominated by cell-type differences |
 | OUT | edges.csv | TF, target, importance | one file per cell type |
 | OUT | run_info.txt | cells, columns, seeds, software versions | required for any comparison |
 | OUT | three seeds | the same run repeated | makes seed-to-seed noise measurable |
 | OUT | top-50k cap | ranked edges used for scoring | the standard evaluation range |
 
-**RECORD** — write both counts down — two runs with different target counts produce edge sets that cannot be compared, and the difference is invisible without them
+WHY RECORD  the two DECIDE rows are not needed to run the step, but they change the cost and the denominator of every metric — write them down, or two runs cannot be compared
 
 **Speaker notes**
 
-> The booster does not know which rows were guessed. Four things worth spelling out. The regulators are the genes allowed on the left of an edge - in this repo tf_only.txt, 829 human transcription factors; a regulator that is not a column of the matrix is dropped silently. The target rule decides which genes are columns of the matrix handed to the booster, and because grnboost2 takes no target list and fits one regression per column, the column set IS the target list - it is a scope and cost decision, and changing it changes every edge count. Cells grouped by cell type means splitting the rows by a barcode-to-cell-type table and inferring one network per group, or pseudobulking within a cell type for reproducibility. And the output is a network stored as an edge list, one row per link: TF is the regulator on the left, target is the gene being predicted, importance is how much predictive gain that TF contributed to that gene's model - a ranking score, not a p-value, not a correlation, and unsigned. To be clear, the network IS a matrix - regulators by genes, with the weight of each edge in the cell. What is written to disk is that same matrix in sparse form, one row per non-zero entry, and the two convert in one line either way. The sparse form is the default not because the matrix is big - it is about 47 megabytes here - but because a zero in a dense matrix means both no edge and zero weight, every metric wants a ranked list of pairs, and importances are scaled per target so reading across a row compares things that are not comparable.
+> The booster does not know which rows were guessed. Only two of these four rows are actually required: the matrix and the regulator list. The other two are decisions with defaults - if you say nothing, every column becomes a target and you get one network over all cells - so they are not inputs you must go and find, but they change the cost and the metric denominator enough that leaving them unrecorded makes the run incomparable. Four things worth spelling out. The regulators are the genes allowed on the left of an edge - in this repo tf_only.txt, 829 human transcription factors; a regulator that is not a column of the matrix is dropped silently. The target rule decides which genes are columns of the matrix handed to the booster, and because grnboost2 takes no target list and fits one regression per column, the column set IS the target list - it is a scope and cost decision, and changing it changes every edge count. Cells grouped by cell type means splitting the rows by a barcode-to-cell-type table and inferring one network per group, or pseudobulking within a cell type for reproducibility. And the output is a network stored as an edge list, one row per link: TF is the regulator on the left, target is the gene being predicted, importance is how much predictive gain that TF contributed to that gene's model - a ranking score, not a p-value, not a correlation, and unsigned. To be clear, the network IS a matrix - regulators by genes, with the weight of each edge in the cell. What is written to disk is that same matrix in sparse form, one row per non-zero entry, and the two convert in one line either way. The sparse form is the default not because the matrix is big - it is about 47 megabytes here - but because a zero in a dense matrix means both no edge and zero weight, every metric wants a ranked list of pairs, and importances are scaled per target so reading across a row compares things that are not comparable.
 
 ---
 
