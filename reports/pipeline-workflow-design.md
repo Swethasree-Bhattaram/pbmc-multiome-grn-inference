@@ -294,24 +294,37 @@ and say "that one is an average", so nobody can ask whether the averages helped.
 step 3 can be run with and without the guessed rows — the comparison that decides whether
 step 2 earns its place.
 
-### Methods that use `H` — steps 1 and 2 stay separate
+### Imputation from `H`: what actually exists
 
-Every method here consumes `H` plus **one companion object**, because coordinates alone cannot
-produce expression values. This is the family the repo is in.
+The finding that matters: **no published tool takes `H` and returns gene expression for
+ATAC-only cells.** Two facts support it, both read from source rather than assumed.
 
-| Method | What it consumes | How it turns that into gene values | Reference |
+| Tool | What it consumes | What you actually get | Reference |
 |---|---|---|---|
-| reverse-imputeKNN (this repo) | `H` + the measured RNA + a frozen reference block | 20 nearest reference cells in `H`, weights `exp(-distance)` | `run.py` |
-| LIGER `imputeKNN` | `H` (as `H.norm`) + the measured RNA | 20 nearest reference cells in `H.norm`, weighted average of their expression | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
-| moscot | `H` passed as the shared embedding (`joint_attr`) + the measured RNA | solves an optimal-transport plan between cells, then transports expression along it | Klein et al., *Nature* 2025, 10.1038/s41586-024-08453-2 |
-| Symphony `mapQuery` | an embedding + the reference's cluster centroids + query expression | maps query cells into the embedding, then transfers from the nearest reference cells | Kang et al., *Nat Commun* 2021, 10.1038/s41467-021-25957-x |
-| MOFA+ `project_data` | factors + their gene loadings | projects cells into the existing factor space, then reconstructs | Argelaguet et al., *Genome Biol* 2020, 10.1186/s13059-020-02015-1 |
+| reverse-imputeKNN (this repo) | `H` + the measured RNA + a frozen reference block | the ATAC→RNA kNN average — the transfer is implemented | `run.py` |
+| LIGER `imputeKNN` | `H.norm` + the reference's **peaks** | RNA→**peaks** only: the function pulls `rawPeak` from the reference, forces the query dataset to `modal = "atac"`, and then normalises peaks. The direction is the opposite of what is needed here | Welch et al., *Cell* 2019, 10.1016/j.cell.2019.05.006 |
+| moscot | a joint latent passed as `joint_attr` | a transport plan. The weighted transfer of expression is code you write | Klein et al., *Nature* 2025, 10.1038/s41586-024-08453-2 |
+| SCOT | nothing latent — it works from the raw feature matrices | a matching plus a barycentric projection into feature space; there is no latent space to average in | Demetci et al., RECOMB 2020 |
+| Symphony `mapQuery` | an embedding + the reference's cluster centroids | query cells placed in the reference space, plus predicted labels. Transfer of expression is yours | Kang et al., *Nat Commun* 2021, 10.1038/s41467-021-25957-x |
+| MOFA+ `project_data` | factors + gene loadings | factors for new cells. Reconstruction is yours | Argelaguet et al., *Genome Biol* 2020, 10.1186/s13059-020-02015-1 |
 
-Two of these were checked in source rather than from memory: rliger's `imputeKNN` aborts if
-`H.norm` is absent and then calls `RANN::nn2(object@H.norm[reference, ], object@H.norm[query, ],
-k = nNeighbors)`; Symphony's `mapQuery(exp_query, metadata_query, ref_obj)` projects query cells
-into a reference object that holds the embedding and centroids. moscot accepts a precomputed
-embedding as `joint_attr`, which is documented in its mapping tutorial.
+The LIGER row is worth stating plainly, because it looks like the obvious answer and is not:
+`imputeKNN` computes neighbours in `H.norm` exactly as needed, but then does
+`referenceRawData <- rawPeak(object, reference)` and returns a dataset constructed with
+`as.ligerDataset(queryLD, modal = "atac")`. It imputes **peaks onto RNA cells**, not genes onto
+ATAC cells. This repo's step is called *reverse*-imputeKNN for that reason: it is the transpose
+of LIGER's function, which does not exist upstream.
+
+**What this means for step 2.** The choice is not which package to install. Every route reduces
+to two decisions:
+
+| Decision | Options | Where it comes from |
+|---|---|---|
+| how to weight the reference cells | kNN with `exp(-distance)`; plain kNN; an optimal-transport plan | LIGER, this repo; moscot or SCOT if an OT plan is wanted |
+| which reference set | one RNA dataset; a batch-corrected union of several | step 1's block map |
+
+The weighted average itself — `reference expression @ weights` — is one line. That is the part
+nobody ships for this direction, and it is the part this repo already owns.
 
 ### Methods that build their own embedding — they replace step 1
 

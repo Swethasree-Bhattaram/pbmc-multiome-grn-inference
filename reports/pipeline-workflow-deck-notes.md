@@ -244,27 +244,26 @@ One gene axis, one normalization, one frozen held-out set
 
 ---
 
-## Slide 9 — Step 2 — imputation methods that use H
+## Slide 9 — Step 2 — imputation from H: what actually exists
 
 **On the slide**
 
-Only this family keeps step 1 and step 2 separate — and it is what you already do
+The weights are available off the shelf — the transfer is not
 
-| Method | What it consumes | How it makes gene values | Citation |
+| Tool | What it consumes | What you actually get | Citation |
 |---|---|---|---|
-| reverse-imputeKNN  (this repo) | H + the measured RNA + a reference block | 20 nearest reference cells, weights exp(−distance) | run.py |
-| LIGER  imputeKNN | H (its H.norm) + the measured RNA | 20 nearest reference cells, weighted average | Welch et al., Cell 2019 |
-| moscot | H passed as the shared embedding (joint_attr) | optimal-transport plan between cells; expression transported along it | Klein et al., Nature 2025 |
-| Symphony  mapQuery | H + cluster centroids of the reference | maps query cells into H, then nearest-cell transfer | Kang et al., Nat Commun 2021 |
-| MOFA+  project_data | H as factors + their gene loadings | projects cells into the factor space, then reconstructs | Argelaguet et al., Genome Biol 2020 |
+| reverse-imputeKNN  (this repo) | H + the measured RNA + a reference block | ATAC→RNA kNN average — the transfer is implemented | run.py |
+| LIGER  imputeKNN | H (its H.norm) + the reference's peaks | RNA→PEAKS only: modal = "atac" is hard-coded, so the direction is wrong for us | Welch et al., Cell 2019 |
+| moscot | a joint latent passed as joint_attr | a transport plan — the transfer is your code | Klein et al., Nature 2025 |
+| SCOT | no latent needed | a matching + projection into feature space — no latent space | Demetci et al., RECOMB 2020 |
+| Symphony  mapQuery | reference embedding + cluster centroids | query cells in the reference space + labels — transfer is yours | Kang et al., Nat Commun 2021 |
+| MOFA+  project_data | factors + gene loadings | factors for new cells — reconstruction is yours | Argelaguet et al., Genome Biol 2020 |
 
-H + MEASURED RNA  H plus the measured RNA is all these need — which is why the integration step earns its place: without H there is no shared space in which to look up a neighbour
-
-None of these can work from H alone: coordinates do not contain expression. Every one of them is H plus one companion object.
+THE GAP  nothing published takes H and returns gene expression for ATAC cells: LIGER's imputer runs the opposite direction, and the OT tools give you the weights, not the average. That last mile is one line of code — and it is what reverse-imputeKNN is
 
 **Speaker notes**
 
-> This is the family your design needs, and it is the one the repo is in. Every entry consumes H plus one companion object, because coordinates alone cannot produce expression values. Our reverse-imputeKNN takes H, the measured RNA and a frozen reference set, finds the twenty nearest reference cells and averages with exp minus distance weights. LIGER's imputeKNN is the same algorithm - it refuses to run if H.norm is missing, then takes the twenty nearest reference cells in that space. moscot accepts an embedding as its joint_attr and solves an optimal-transport plan between cells, then moves expression along that plan; that is the OT analogue of the same idea. Symphony's mapQuery projects query cells into a reference embedding and you transfer from the nearest reference cells. MOFA+ projects into an existing factor space and reconstructs. The point for the talk: the integration step is load bearing here. Without H there is no shared space in which a neighbour lookup means anything, so step 1 is not decoration - it is the only reason the imputation works.
+> This is the honest inventory, and it is the most useful slide in the section because it answers what we can actually run. Nothing published takes H and hands back gene expression for ATAC-only cells. LIGER is the closest and it is the wrong direction: imputeKNN is hard-wired to impute PEAKS for query cells - it pulls rawPeak from the reference, forces the query dataset to modal equals atac, and then normalises peaks. Gene to peak, not peak to gene. That is exactly why our step is called reverse imputeKNN: it is the transpose of LIGER's function, which did not exist. The other tools give you the weights but not the transfer. moscot returns a transport plan in a shared latent. SCOT returns a matching and a projection in feature space, with no latent at all. Symphony returns query cells placed in the reference space plus labels. MOFA+ returns factors. In every case the weighted average over reference expression is code you write - and it is short. So the real design choice for step two is not which package to install, it is which weighting rule to use: kNN with exp minus distance, plain kNN, or an optimal-transport plan; and which reference set. That is a much smaller and more tractable design space than the method table made it look.
 
 ---
 
