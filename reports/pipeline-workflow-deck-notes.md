@@ -239,7 +239,7 @@ One gene axis, one normalization, one frozen held-out set
 
 **Speaker notes**
 
-> Three constraints: one gene axis, one normalization, one frozen held-out set. The mask is the addition that makes this step testable - with it, step 3 can be run with and without the guessed rows.
+> Three constraints: one gene axis, one normalization, one frozen answer key. Two terms worth spelling out. The mask is a true/false grid the same shape as X, true where the value was measured and false where it was guessed; it is how any later step can ask whether a number is real, and it is what lets step 3 run with and without the guessed rows. One normalization means exactly one declared transform, for example log1p of counts per 10k written to norm.txt, applied so that measured and guessed rows sit on the same scale - if the imputer outputs something else, such as a probability between 0 and 1, it has to be mapped into that space. Otherwise the two blocks are separable and the network learns which block a cell came from instead of biology. The quick check is per gene: compare mean, variance and nonzero fraction between measured and guessed rows. They should be close; a systematic shift means the scales do not match.
 
 ---
 

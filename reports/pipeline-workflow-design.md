@@ -65,14 +65,15 @@ Method names later in the document are only different ways of doing one of these
                                                           per cell type         · a verdict
 ```
 
-Three phrases in step 2's input are worth defining once, because they are the whole of the
-step:
+Five phrases in step 2 are worth defining once — three in its input, two in its output:
 
 | Phrase in the diagram | What it actually is |
 |---|---|
 | **measured RNA** (also "real RNA") | the gene-expression matrix of the cells that *have* RNA — the multiome cells. It is the only source of the values that get copied onto ATAC cells. Called "measured" only to distinguish it from the guessed values. |
 | **which cells need values** ("ATAC row list") | the row numbers of `X` that belong to ATAC-only cells. They have no measurement, so they are the rows to be filled in. Without this list you cannot say which rows of the output are guesses. |
 | **paired cells set aside as the answer key** ("held out", "frozen") | a set of cells measured *both* ways, whose RNA we hide from the imputer and compare against afterwards. "Frozen" means: chosen once, recorded, and never allowed into the imputer's reference set or any fitting — otherwise the comparison is against something the method already saw. This is the test set for steps 1 and 2. |
+| **mask: measured / guessed** | a true/false grid the same shape as `X`. True where the number came from a real measurement, false where it is a guess. It is how every later step — and every metric — can ask "was this value measured, or invented?", and it is what lets step 3 run with and without the guessed rows. |
+| **one normalization** | exactly one declared transformation from raw counts to comparable numbers (e.g. `log1p(CPM/1e4)`), written to `norm.txt`, applied so that measured rows and guessed rows sit on the **same scale**. If the imputer emits something else — a probability in [0, 1], say — it must be mapped into that space. Otherwise the two blocks are separable, and the network model learns "which block is this" instead of biology. |
 
 Each column's output is literally the next column's input. That is the whole design: there
 are only two objects to inspect, `H` and `X`, and both can be inspected without running a
@@ -242,10 +243,15 @@ Consequences 1–3 can all be measured directly. That is what the metrics below 
 | which cells need values | row indices of the ATAC-only cells | these are the rows of `X` being filled in |
 | answer-key cells | paired cells, fixed and excluded from fitting | the hidden RNA we compare against afterwards; if they enter the reference, the test is void |
 
-Two details that cause silent failures: the gene axis is written to a file once and never
-re-derived (two experiments on 36,601 and 21,932 genes produce numbers that cannot be
-compared), and the normalization is identical for measured and guessed rows. A mismatch
+Two details that cause silent failures. First, the gene axis is written to a file once and
+never re-derived: two experiments on 36,601 and 21,932 genes produce numbers that cannot be
+compared. Second, measured and guessed rows must share one normalization, because a mismatch
 between the two becomes a batch covariate that the network model will happily learn.
+
+A one-line check catches both: for each gene, compare mean, variance and nonzero fraction
+between the measured rows and the guessed rows. They will not be identical — the guesses are
+smoother — but a systematic shift across most genes means the two blocks are not on the same
+scale, and step 3 will partly be learning the block, not the biology.
 
 ### Output
 
@@ -316,7 +322,8 @@ Pass if all four hold:
 1. pFCS clearly above the shuffled-reference control.
 2. MSE clearly below the same control.
 3. gene-wise ρ inside the published range — not near zero, and not suspiciously near 1.
-4. Guessed rows are not markedly denser than real rows.
+4. The two blocks are on one scale: guessed rows are not markedly denser than measured
+   rows, and per-gene mean and variance do not shift systematically between the two.
 
 Failure signatures visible in the network, with no ground truth needed:
 
