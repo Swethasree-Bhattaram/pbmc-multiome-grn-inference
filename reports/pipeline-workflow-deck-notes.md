@@ -1,6 +1,6 @@
 # Deck notes — from two matrices to a gene regulatory network
 
-29 slides. One block per way: the blocks are the argument, and they all have the same shape.
+30 slides. One block per way: the blocks are the argument, and they all have the same shape.
 
 Deck order: title → vocabulary → the four ways at a glance → **for each way**: one overview slide (the steps, with what goes in and what comes out of each), then one slide of methods and one slide of checks per step → choosing between the ways → grading the route on simulated data → the gates → run order → summary.
 
@@ -239,7 +239,33 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 10 — Way 1 · step 3 — the network: the methods
+## Slide 10 — Way 1 · step 2 — where the checks come from
+
+`WAY 1 · STEP 2 OF 3`
+
+**On the slide**
+
+*Every scale on the previous slide was set on somebody else's data; this is whose*
+
+| Metric | Source | How it was used before |
+|---|---|---|
+| MSE (the benchmark calls it sMSE) | Liu et al., Nat Methods 2025 — the error term of their imputation task | ranks the benchmarked methods by standardized error against held-out truth |
+| pFCS | the same benchmark — preservation of feature correlation structure | one of the three data-structure metrics that decide the ranking |
+| pDES | the same benchmark — preservation of differential-expression statistics | DE statistics recomputed after imputation and compared with the truth |
+| gene-wise ρ | Polarbear (J Comput Biol 2022) and BABEL (PNAS 2021), on SNARE-seq | reported per gene for ATAC → RNA translation; source of the 0.155–0.22 range |
+| densification | Andrews & Hemberg, F1000Research 2019, on false signals from imputation | they counted the zeros imputation creates, and the false positives that follow it |
+| downstream (5 + 5) | the same benchmark — classifier and clustering metrics | computed on the imputed matrix, so the imputer is graded by what it is for |
+| shuffled-neighbour control | Andrews & Hemberg's permuted-dataset design | run on data with no signal: whatever the metric still reports, it invented |
+
+> **WHY IT MATTERS** — we are reusing scales that were calibrated elsewhere, so the control matters more than the value — it is the only check that does not depend on someone else's data
+
+**Speaker notes**
+
+> Provenance, because a metric you cannot source is a metric you cannot argue with. Four of the six rows — sMSE, pFCS, pDES and the downstream suite — come as a set from the imputation task of Liu et al. 2025, the benchmark of 40 methods across five tasks: sMSE is the standardized mean squared error against the truth, pFCS compares the feature–feature correlation matrices before and after, pDES recomputes differential-expression statistics and compares them, and the downstream block is five classification and five clustering metrics computed on the imputed matrix. Using the same names means our numbers sit next to published ones instead of beside them. gene-wise ρ is the only row calibrated on data of exactly this kind: Polarbear and BABEL report per-gene Pearson for ATAC to RNA translation on SNARE-seq, and 0.155 to 0.22 is where they land, which is how we know a reported 0.9 is a leak rather than a triumph. Densification comes from Andrews and Hemberg, who counted the zeros imputation creates and the false positives that follow; it is a diagnostic, not a score. And the shuffled-neighbour control is their permuted-dataset design, borrowed wholesale: run the metric on data known to contain no signal and see what it reports. That is why the control sits in a strip rather than a row — it is the only check that can fail on its own.
+
+---
+
+## Slide 11 — Way 1 · step 3 — the network: the methods
 
 `WAY 1 · STEP 3 OF 3`
 
@@ -266,7 +292,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 11 — Way 1 · step 3 — the network: the checks
+## Slide 12 — Way 1 · step 3 — the network: the checks
 
 `WAY 1 · STEP 3 OF 3`
 
@@ -295,7 +321,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 # Way 2
 
-## Slide 12 — Way 2 — one model does both, then infer
+## Slide 13 — Way 2 — one model does both, then infer
 
 **On the slide**
 
@@ -324,7 +350,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 13 — Way 2 · step 1 — the joint model: the methods
+## Slide 14 — Way 2 · step 1 — the joint model: the methods
 
 `WAY 2 · STEP 1 OF 2`
 
@@ -353,7 +379,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 14 — Way 2 · step 1 — the joint model: the checks
+## Slide 15 — Way 2 · step 1 — the joint model: the checks
 
 `WAY 2 · STEP 1 OF 2`
 
@@ -377,7 +403,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 15 — Way 2 · step 2 — the network: the checks
+## Slide 16 — Way 2 · step 2 — the network: the checks
 
 `WAY 2 · STEP 2 OF 2`
 
@@ -409,7 +435,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 # Way 3
 
-## Slide 16 — Way 3 — gene activity, then infer
+## Slide 17 — Way 3 — gene activity, then infer
 
 **On the slide**
 
@@ -439,7 +465,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 17 — Way 3 · step 1 — gene activity: the methods
+## Slide 18 — Way 3 · step 1 — gene activity: the methods
 
 `WAY 3 · STEP 1 OF 3`
 
@@ -463,7 +489,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 18 — Way 3 · step 1 — gene activity: the checks
+## Slide 19 — Way 3 · step 1 — gene activity: the checks
 
 `WAY 3 · STEP 1 OF 3`
 
@@ -486,7 +512,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 19 — Way 3 · step 2 — stacking and masking
+## Slide 20 — Way 3 · step 2 — stacking and masking
 
 `WAY 3 · STEP 2 OF 3`
 
@@ -511,7 +537,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 20 — Way 3 · step 3 — the network: the checks
+## Slide 21 — Way 3 · step 3 — the network: the checks
 
 `WAY 3 · STEP 3 OF 3`
 
@@ -542,7 +568,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 # Way 4
 
-## Slide 21 — Way 4 — aggregate cells first, then infer
+## Slide 22 — Way 4 — aggregate cells first, then infer
 
 **On the slide**
 
@@ -571,7 +597,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 22 — Way 4 · step 1 — aggregation: the methods
+## Slide 23 — Way 4 · step 1 — aggregation: the methods
 
 `WAY 4 · STEP 1 OF 2`
 
@@ -595,7 +621,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 23 — Way 4 · step 1 — aggregation: the checks
+## Slide 24 — Way 4 · step 1 — aggregation: the checks
 
 `WAY 4 · STEP 1 OF 2`
 
@@ -618,7 +644,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 24 — Way 4 · step 2 — the network: the checks
+## Slide 25 — Way 4 · step 2 — the network: the checks
 
 `WAY 4 · STEP 2 OF 2`
 
@@ -647,7 +673,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 25 — How to choose between the ways
+## Slide 26 — How to choose between the ways
 
 **On the slide**
 
@@ -671,7 +697,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 26 — Grade the whole route against a network we chose
+## Slide 27 — Grade the whole route against a network we chose
 
 **On the slide**
 
@@ -694,7 +720,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 27 — Each gate protects the next step from one failure
+## Slide 28 — Each gate protects the next step from one failure
 
 **On the slide**
 
@@ -715,7 +741,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 28 — Run order and cost
+## Slide 29 — Run order and cost
 
 **On the slide**
 
@@ -737,7 +763,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 ---
 
-## Slide 29 — Summary — four routes, one destination
+## Slide 30 — Summary — four routes, one destination
 
 **On the slide**
 
