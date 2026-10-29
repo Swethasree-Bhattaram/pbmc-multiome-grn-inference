@@ -339,9 +339,21 @@ def step_methods(prs, n, *, note, accent, eyebrow, title, kicker, header, rows, 
     return s
 
 
+def drop_truth(rows):
+    """Rows are (metric, what it asks, truth needed, ...); the truth column is not shown."""
+    return [[r[0], r[1]] + list(r[3:]) for r in rows]
+
+
 def step_checks(prs, n, *, note, accent, eyebrow, title, kicker, rows, widths,
-                strip_label, strip_text, tail=None, body_size=10.5, header=None):
-    header = header or ["Metric", "What it asks", "Truth needed", "Good looks like"]
+                strip_label, strip_text, tail=None, body_size=11.5, header=None):
+    header = header or ["Metric", "What it asks", "Good looks like"]
+    if header and header[2] == "Truth needed":
+        header = header[:2] + header[3:]
+    merged = widths[1] + widths[2]
+    widths = [widths[0], round(merged * 0.66, 2), widths[3],
+              round(widths[4] + merged * 0.34, 2)] if len(widths) == 5 else \
+             [widths[0], round(merged * 0.66, 2), round(widths[3] + merged * 0.34, 2)]
+    rows = drop_truth(rows)
     s = slide_base(prs, title, kicker, accent, n, eyebrow)
     b = table(s, [header] + rows, widths, BODY_TOP, accent=accent, body_size=body_size,
               first_col_bold=True, first_col_color=accent, total_width=sum(widths))
@@ -889,7 +901,8 @@ add(step_checks,
           "reorders it, and every check has to be recomputed per fit."),
     accent=a2, eyebrow="WAY 2 · STEP 1 OF 2",
     title="Way 2 · step 1 — the joint model: the checks",
-    kicker="The Way 1 checks apply — but only if the latent was exported",
+    kicker="The Way 1 checks apply, on paired cells masked before fitting — but only if the latent "
+           "was exported",
     rows=[["held-out MSE", "how far is the decoded expression from the hidden RNA?",
            "paired cells, masked before fitting", "low, and clearly below the shuffled control"],
           ["pFCS", "is the gene–gene correlation structure preserved?", "the same held-out cells",
@@ -1045,18 +1058,18 @@ add(step_methods,
     accent=a3, eyebrow="WAY 3 · STEP 2 OF 3",
     title="Way 3 · step 2 — stacking and masking",
     kicker="Bookkeeping that decides whether the network learns biology or block membership",
-    header=["Check", "What it asks", "Truth needed", "Good looks like"],
+    header=["Check", "What it asks", "Good looks like"],
     rows=[["block separability",
            "train a classifier to tell scored rows from measured rows",
-           "row provenance", "chance level only — above chance means a shortcut exists"],
+           "chance level only — above chance means a shortcut exists"],
           ["per-gene shift",
-           "mean, variance and nonzero fraction per gene, block A vs block B",
-           "the measured-row distribution", "no systematic shift after normalization"],
+           "mean, variance and nonzero fraction per gene, block A vs the measured-row distribution",
+           "no systematic shift after normalization"],
           ["row accounting", "how many rows are scored vs measured",
-           "the barcode table", "recorded; a small ATAC block cannot carry the network"],
+           "recorded; a small ATAC block cannot carry the network"],
           ["axis identity", "are the gene sets identical, and is the order fixed?",
-           "genes.txt written once", "byte-identical across runs"]],
-    widths=[2.10, 4.75, 2.35, 2.90],
+           "byte-identical across runs"]],
+    widths=[2.10, 4.90, 5.10],
     strip_label="THE MASK IS THE DELIVERABLE",
     strip_text=("without it nobody downstream can point at a row and say 'that one is a score' — "
                 "so nobody can ask whether the ATAC rows helped"),
@@ -1381,9 +1394,10 @@ def md_for(fn, kw) -> str:
         parts.append(_quote(kw["strip_label"], kw["strip_text"]))
     elif name == "step_checks":
         parts.append(f"*{kw['kicker']}*")
-        parts.append(_tbl(kw.get("header") or
-                          ["Metric", "What it asks", "Truth needed", "Good looks like"],
-                          kw["rows"]))
+        head = kw.get("header") or ["Metric", "What it asks", "Truth needed", "Good looks like"]
+        if head[2] == "Truth needed":
+            head = head[:2] + head[3:]
+        parts.append(_tbl(head, drop_truth(kw["rows"])))
         if kw.get("tail"):
             parts.append(f"*{kw['tail']}*")
         parts.append(_quote(kw["strip_label"], kw["strip_text"]))

@@ -149,12 +149,12 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Four metrics; the first needs paired cells, and it is the strictest*
 
-| Metric | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| FOSCTTM | for each cell, what fraction of other cells are closer to it than its true cross-modal partner? | paired cells, held out | 0 is perfect, 0.5 is random; published 0.14–0.16 (MMD-MA), 0.22 (UnionCom) |
-| label conservation | are cell types still separated? ARI, NMI, cLISI, silhouette, isolated-label F1 | cell-type labels | close to the unintegrated labels, far from a shuffled control |
-| batch correction | are the datasets mixed? kBET, iLISI, batch silhouette | dataset labels | improves while the label metrics hold |
-| label transfer | can a label learned on the RNA half be assigned to the ATAC half? | paired cells + labels | above 0.85 on major lineages |
+| Metric | What it asks | Good looks like |
+|---|---|---|
+| FOSCTTM | for each cell, what fraction of other cells are closer to it than its true cross-modal partner? | 0 is perfect, 0.5 is random; published 0.14–0.16 (MMD-MA), 0.22 (UnionCom) |
+| label conservation | are cell types still separated? ARI, NMI, cLISI, silhouette, isolated-label F1 | close to the unintegrated labels, far from a shuffled control |
+| batch correction | are the datasets mixed? kBET, iLISI, batch silhouette | improves while the label metrics hold |
+| label transfer | can a label learned on the RNA half be assigned to the ATAC half? | above 0.85 on major lineages |
 
 *scIB (Luecken et al., Nat Methods 2022) implements the middle two rows as 14 metrics; report the biology half and the batch half separately.*
 
@@ -220,14 +220,14 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Lead with pFCS — it is the one metric that measures what step 3 actually reads*
 
-| Metric | What it asks | Truth needed | Source, and how it was used | Good looks like |
-|---|---|---|---|---|
-| pFCS | is the gene–gene correlation structure preserved? Pearson of the two correlation matrices over the top-100 variable genes | held-out cells | Liu et al., Nat Methods 2025 — one of their three data-structure metrics | high, and above the control |
-| MSE | how far is the guess from the hidden value? | held-out cells | Liu et al. 2025, as sMSE — ranks methods on held-out truth | low, and below the control |
-| pDES | are differential-expression statistics preserved? (limma, per cell type) | held-out cells + labels | Liu et al. 2025 — DE statistics recomputed after imputation | high |
-| gene-wise ρ | per-gene Pearson or Spearman against the hidden RNA | held-out cells | Polarbear 2022 and BABEL 2021, on SNARE-seq — per-gene Pearson | 0.155–0.22; the published ATAC → RNA ceiling |
-| densification | nonzero fraction of guessed rows vs measured rows | the measured-row distribution | Andrews & Hemberg 2019 — zeros created, and the false positives after | no inflation |
-| downstream | 5 classification and 5 clustering metrics on the imputed matrix | cell-type labels | Liu et al. 2025 — classifier and clustering on the imputed data | as the benchmark defines |
+| Metric | What it asks | Source, and how it was used | Good looks like |
+|---|---|---|---|
+| pFCS | is the gene–gene correlation structure preserved? Pearson of the two correlation matrices over the top-100 variable genes | Liu et al., Nat Methods 2025 — one of their three data-structure metrics | high, and above the control |
+| MSE | how far is the guess from the hidden value? | Liu et al. 2025, as sMSE — ranks methods on held-out truth | low, and below the control |
+| pDES | are differential-expression statistics preserved? (limma, per cell type) | Liu et al. 2025 — DE statistics recomputed after imputation | high |
+| gene-wise ρ | per-gene Pearson or Spearman against the hidden RNA | Polarbear 2022 and BABEL 2021, on SNARE-seq — per-gene Pearson | 0.155–0.22; the published ATAC → RNA ceiling |
+| densification | nonzero fraction of guessed rows vs measured rows | Andrews & Hemberg 2019 — zeros created, and the false positives after | no inflation |
+| downstream | 5 classification and 5 clustering metrics on the imputed matrix | Liu et al. 2025 — classifier and clustering on the imputed data | as the benchmark defines |
 
 *scIMC (NAR 2022) and the scTranslation benchmark (SIGKDD 2026) are ready-made harnesses for this whole list.*
 
@@ -274,14 +274,14 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *AUPRC, not AUROC; and only the top-ranked edges count*
 
-| Metric | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| AUPRC | of all possible TF→target pairs, how well are the true ones ranked? | ChIP-seq, curated sets, knockouts | above the negative control |
-| early precision | precision among the top-ranked edges | as above | the headline metric in BEELINE |
-| stability | Jaccard of the top-10k edges across 3 seeds and subsamples | none — it measures our own noise | any reported difference must exceed it |
-| topology | are hubs and degree structure recovered? | simulated networks (STREAMLINE) | comparable to the planted network |
-| perturbation | does the network predict a measured knockout? | Perturb-seq | positive agreement |
-| regulon activity | AUCell score of the top regulons, per cell type | cell-type labels | cell-type specific, not global |
+| Metric | What it asks | Good looks like |
+|---|---|---|
+| AUPRC | of all possible TF→target pairs, how well are the true ones ranked? | above the negative control |
+| early precision | precision among the top-ranked edges | the headline metric in BEELINE |
+| stability | Jaccard of the top-10k edges across 3 seeds and subsamples | any reported difference must exceed it |
+| topology | are hubs and degree structure recovered? | comparable to the planted network |
+| perturbation | does the network predict a measured knockout? | positive agreement |
+| regulon activity | AUCell score of the top regulons, per cell type | cell-type specific, not global |
 
 *Three truth tiers, following BEELINE (Pratapa et al., Nat Methods 2020): synthetic networks, literature Boolean models, experimental ChIP and knockout.*
 
@@ -359,15 +359,15 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 **On the slide**
 
-*The Way 1 checks apply — but only if the latent was exported*
+*The Way 1 checks apply, on paired cells masked before fitting — but only if the latent was exported*
 
-| Metric | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| held-out MSE | how far is the decoded expression from the hidden RNA? | paired cells, masked before fitting | low, and clearly below the shuffled control |
-| pFCS | is the gene–gene correlation structure preserved? | the same held-out cells | high, and clearly above the control |
-| gene-wise ρ | per-gene Pearson or Spearman against the hidden RNA | the same held-out cells | 0.155–0.22; higher suggests leakage |
-| FOSCTTM on the exported z | is each cell nearest its true partner in the model's own space? | paired cells | 0.14–0.22 if z was saved — otherwise this check does not exist |
-| run-to-run agreement | do two fits give the same network? | none — it measures the model's own noise | reported differences must exceed it |
+| Metric | What it asks | Good looks like |
+|---|---|---|
+| held-out MSE | how far is the decoded expression from the hidden RNA? | low, and clearly below the shuffled control |
+| pFCS | is the gene–gene correlation structure preserved? | high, and clearly above the control |
+| gene-wise ρ | per-gene Pearson or Spearman against the hidden RNA | 0.155–0.22; higher suggests leakage |
+| FOSCTTM on the exported z | is each cell nearest its true partner in the model's own space? | 0.14–0.22 if z was saved — otherwise this check does not exist |
+| run-to-run agreement | do two fits give the same network? | reported differences must exceed it |
 
 > **WHAT TO WATCH** — the latent is not identifiable: retraining reorders it, so every check is recomputed per fit, and hyperparameters move the result more than the data does
 
@@ -471,12 +471,12 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Measure the substitution honestly, on the cells where both measurements exist*
 
-| Metric | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| gene activity vs measured RNA | per-gene Pearson on paired cells | paired cells | modest, not high — a high value suggests the window was tuned on the answer |
-| block distribution match | mean, variance and nonzero fraction, scored rows vs measured rows | the measured-row distribution | no systematic shift |
-| peak quality | FRiP and TSS enrichment per cell | none — the tool's own thresholds | passing cells only; drop the rest before scoring |
-| does it add or dilute | GRN on mixed rows minus GRN on RNA-only rows | cell-type-matched truth | a positive delta; a negative delta means drop the ATAC rows |
+| Metric | What it asks | Good looks like |
+|---|---|---|
+| gene activity vs measured RNA | per-gene Pearson on paired cells | modest, not high — a high value suggests the window was tuned on the answer |
+| block distribution match | mean, variance and nonzero fraction, scored rows vs measured rows | no systematic shift |
+| peak quality | FRiP and TSS enrichment per cell | passing cells only; drop the rest before scoring |
+| does it add or dilute | GRN on mixed rows minus GRN on RNA-only rows | a positive delta; a negative delta means drop the ATAC rows |
 
 > **WHAT TO WATCH** — a scored row is not a noisy expression row — it is a different quantity, so the columns of the matrix no longer mean the same thing for every row
 
@@ -494,12 +494,12 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Bookkeeping that decides whether the network learns biology or block membership*
 
-| Check | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| block separability | train a classifier to tell scored rows from measured rows | row provenance | chance level only — above chance means a shortcut exists |
-| per-gene shift | mean, variance and nonzero fraction per gene, block A vs block B | the measured-row distribution | no systematic shift after normalization |
-| row accounting | how many rows are scored vs measured | the barcode table | recorded; a small ATAC block cannot carry the network |
-| axis identity | are the gene sets identical, and is the order fixed? | genes.txt written once | byte-identical across runs |
+| Check | What it asks | Good looks like |
+|---|---|---|
+| block separability | train a classifier to tell scored rows from measured rows | chance level only — above chance means a shortcut exists |
+| per-gene shift | mean, variance and nonzero fraction per gene, block A vs the measured-row distribution | no systematic shift after normalization |
+| row accounting | how many rows are scored vs measured | recorded; a small ATAC block cannot carry the network |
+| axis identity | are the gene sets identical, and is the order fixed? | byte-identical across runs |
 
 *What the step produces: X (cells × genes, float32), mask (same shape, bool), genes.txt, and norm.txt with the single declared transform.*
 
@@ -603,12 +603,12 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Check the units before checking the network*
 
-| Metric | What it asks | Truth needed | Good looks like |
-|---|---|---|---|
-| metacell purity | is each metacell one cell state? | cell-type labels | high purity; check the mixing, not the mean |
-| partition stability | re-run the aggregation — same units? | none | high overlap across seeds and subsamples |
-| group size distribution | are groups balanced, and is any cell type missing? | cell counts | no population lost to underflow |
-| marker recovery | do group-level pseudobulks recover canonical markers? | marker lists | the expected markers present in each group |
+| Metric | What it asks | Good looks like |
+|---|---|---|
+| metacell purity | is each metacell one cell state? | high purity; check the mixing, not the mean |
+| partition stability | re-run the aggregation — same units? | high overlap across seeds and subsamples |
+| group size distribution | are groups balanced, and is any cell type missing? | no population lost to underflow |
+| marker recovery | do group-level pseudobulks recover canonical markers? | the expected markers present in each group |
 
 > **WHAT TO WATCH** — a metacell averages over its members by construction, so any check that looks only at the average will pass even when the partition is wrong
 
