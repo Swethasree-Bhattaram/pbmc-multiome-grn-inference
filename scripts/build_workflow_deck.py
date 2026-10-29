@@ -340,8 +340,8 @@ def step_methods(prs, n, *, note, accent, eyebrow, title, kicker, header, rows, 
 
 
 def step_checks(prs, n, *, note, accent, eyebrow, title, kicker, rows, widths,
-                strip_label, strip_text, tail=None, body_size=10.5):
-    header = ["Metric", "What it asks", "Truth needed", "Good looks like"]
+                strip_label, strip_text, tail=None, body_size=10.5, header=None):
+    header = header or ["Metric", "What it asks", "Truth needed", "Good looks like"]
     s = slide_base(prs, title, kicker, accent, n, eyebrow)
     b = table(s, [header] + rows, widths, BODY_TOP, accent=accent, body_size=body_size,
               first_col_bold=True, first_col_color=accent, total_width=sum(widths))
@@ -674,76 +674,63 @@ add(mechanism,
 add(step_checks,
     note=("Lead with pFCS. It asks the exact question the next step depends on: after imputation, "
           "do genes still correlate the way they really correlate? A blurred matrix can have low "
-          "MSE and still destroy correlation structure, and correlation structure is the only "
-          "thing the network model reads. Every metric here needs held-out paired cells — cells "
-          "measured both ways whose RNA was hidden before the imputer ran. There is no truth "
-          "behind an ATAC-only row, so ATAC-only rows cannot be used to grade this step."),
+          "MSE and still destroy correlation structure, and correlation structure is the only thing "
+          "the network model reads. Every metric here needs held-out paired cells — cells measured "
+          "both ways whose RNA was hidden before the imputer ran; there is no truth behind an "
+          "ATAC-only row. On the source column: four rows come as a set from the imputation task "
+          "of Liu et al. 2025, which is why the deck uses their names — sMSE, pFCS and pDES are the "
+          "three data-structure metrics, and the downstream block is five classification and five "
+          "clustering metrics computed on the imputed matrix. Reusing the names means our numbers "
+          "sit next to published ones instead of beside them. gene-wise ρ is the one row calibrated "
+          "on data of exactly this kind: Polarbear and BABEL report per-gene Pearson for ATAC to "
+          "RNA translation on SNARE-seq, and 0.155 to 0.22 is where they land — which is how a "
+          "reported 0.9 reads as a leak rather than a triumph. Densification comes from Andrews "
+          "and Hemberg, who counted the zeros imputation creates and the false positives that "
+          "follow; it is a diagnostic, not a score, which is why no target is set for it. And the "
+          "shuffled-neighbour control is their permuted-dataset design borrowed wholesale: run the "
+          "metric on data known to contain no signal and see what it still reports. It sits in a "
+          "strip rather than a row because it is the only check that can fail on its own."),
     accent=a1, eyebrow="WAY 1 · STEP 2 OF 3",
     title="Way 1 · step 2 — imputation: the checks",
     kicker="Lead with pFCS — it is the one metric that measures what step 3 actually reads",
+    header=["Metric", "What it asks", "Truth needed", "Source, and how it was used", "Good looks like"],
     rows=[["pFCS",
            "is the gene–gene correlation structure preserved? Pearson of the two correlation "
            "matrices over the top-100 variable genes",
-           "held-out cells", "high, and clearly above the control"],
-          ["MSE", "how far is the guess from the hidden value?", "held-out cells",
-           "low, and clearly below the control"],
-          ["pDES", "are differential-expression statistics preserved? (limma, per cell type)",
-           "held-out cells + labels", "high"],
-          ["gene-wise ρ", "per-gene Pearson or Spearman against the hidden RNA",
-           "held-out cells", "0.155–0.22; the published ceiling for ATAC → RNA"],
-          ["densification", "nonzero fraction of guessed rows vs measured rows",
-           "the measured-row distribution", "no inflation"],
-          ["downstream", "5 classification and 5 clustering metrics on the imputed matrix",
-           "cell-type labels", "as the benchmark defines"]],
-    widths=[1.85, 5.55, 2.05, 2.65],
+           "held-out cells",
+           "Liu et al., Nat Methods 2025 — one of their three data-structure metrics",
+           "high, and above the control"],
+          ["MSE",
+           "how far is the guess from the hidden value?",
+           "held-out cells",
+           "Liu et al. 2025, as sMSE — ranks methods on held-out truth",
+           "low, and below the control"],
+          ["pDES",
+           "are differential-expression statistics preserved? (limma, per cell type)",
+           "held-out cells + labels",
+           "Liu et al. 2025 — DE statistics recomputed after imputation",
+           "high"],
+          ["gene-wise ρ",
+           "per-gene Pearson or Spearman against the hidden RNA",
+           "held-out cells",
+           "Polarbear 2022 and BABEL 2021, on SNARE-seq — per-gene Pearson",
+           "0.155–0.22; the published ATAC → RNA ceiling"],
+          ["densification",
+           "nonzero fraction of guessed rows vs measured rows",
+           "the measured-row distribution",
+           "Andrews & Hemberg 2019 — zeros created, and the false positives after",
+           "no inflation"],
+          ["downstream",
+           "5 classification and 5 clustering metrics on the imputed matrix",
+           "cell-type labels",
+           "Liu et al. 2025 — classifier and clustering on the imputed data",
+           "as the benchmark defines"]],
+    widths=[1.62, 3.78, 1.60, 3.10, 1.95],
     strip_label="NEGATIVE CONTROL",
     strip_text=("repeat the whole measurement with randomized neighbours; if the control scores as "
                 "well, the metric is describing the data, not the imputation"),
-    tail="Definitions follow the imputation task in Liu et al., Nat Methods 2025; scIMC (NAR 2022) "
-         "and the scTranslation benchmark (SIGKDD 2026) are ready-made harnesses.")
-
-add(table_slide,
-    note=("Provenance, because a metric you cannot source is a metric you cannot argue with. Four of "
-          "the six rows — sMSE, pFCS, pDES and the downstream suite — come as a set from the "
-          "imputation task of Liu et al. 2025, the benchmark of 40 methods across five tasks: sMSE "
-          "is the "
-          "standardized mean squared error against the truth, pFCS compares the feature–feature "
-          "correlation matrices before and after, pDES recomputes differential-expression "
-          "statistics and compares them, and the downstream block is five classification and five "
-          "clustering metrics computed on the imputed matrix. Using the same names means our "
-          "numbers sit next to published ones instead of beside them. gene-wise ρ is the only row "
-          "calibrated on data of exactly this kind: Polarbear and BABEL report per-gene Pearson for "
-          "ATAC to RNA translation on SNARE-seq, and 0.155 to 0.22 is where they land, which is how "
-          "we know a reported 0.9 is a leak rather than a triumph. Densification comes from "
-          "Andrews and Hemberg, who counted the zeros imputation creates and the false positives "
-          "that follow; it is a diagnostic, not a score. And the shuffled-neighbour control is "
-          "their permuted-dataset design, borrowed wholesale: run the metric on data known to "
-          "contain no signal and see what it reports. That is why the control sits in a strip "
-          "rather than a row — it is the only check that can fail on its own."),
-    accent=a1, eyebrow="WAY 1 · STEP 2 OF 3",
-    title="Way 1 · step 2 — where the checks come from",
-    kicker="Every scale on the previous slide was set on somebody else's data; this is whose",
-    header=["Metric", "Source", "How it was used before"],
-    rows=[["MSE\n(the benchmark calls it sMSE)",
-           "Liu et al., Nat Methods 2025 — the error term of their imputation task",
-           "ranks the benchmarked methods by standardized error against held-out truth"],
-          ["pFCS", "the same benchmark — preservation of feature correlation structure",
-           "one of the three data-structure metrics that decide the ranking"],
-          ["pDES", "the same benchmark — preservation of differential-expression statistics",
-           "DE statistics recomputed after imputation and compared with the truth"],
-          ["gene-wise ρ",
-           "Polarbear (J Comput Biol 2022) and BABEL (PNAS 2021), on SNARE-seq",
-           "reported per gene for ATAC → RNA translation; source of the 0.155–0.22 range"],
-          ["densification", "Andrews & Hemberg, F1000Research 2019, on false signals from imputation",
-           "they counted the zeros imputation creates, and the false positives that follow it"],
-          ["downstream (5 + 5)", "the same benchmark — classifier and clustering metrics",
-           "computed on the imputed matrix, so the imputer is graded by what it is for"],
-          ["shuffled-neighbour control", "Andrews & Hemberg's permuted-dataset design",
-           "run on data with no signal: whatever the metric still reports, it invented"]],
-    widths=[2.35, 4.55, 5.20],
-    strip_label="WHY IT MATTERS",
-    strip_text=("we are reusing scales that were calibrated elsewhere, so the control matters more "
-                "than the value — it is the only check that does not depend on someone else's data"))
+    tail="scIMC (NAR 2022) and the scTranslation benchmark (SIGKDD 2026) are ready-made harnesses "
+         "for this whole list.")
 
 add(step_methods,
     note=("The matrix arriving here is expression-like, so the methods that fit are the "
@@ -1394,7 +1381,8 @@ def md_for(fn, kw) -> str:
         parts.append(_quote(kw["strip_label"], kw["strip_text"]))
     elif name == "step_checks":
         parts.append(f"*{kw['kicker']}*")
-        parts.append(_tbl(["Metric", "What it asks", "Truth needed", "Good looks like"],
+        parts.append(_tbl(kw.get("header") or
+                          ["Metric", "What it asks", "Truth needed", "Good looks like"],
                           kw["rows"]))
         if kw.get("tail"):
             parts.append(f"*{kw['tail']}*")
