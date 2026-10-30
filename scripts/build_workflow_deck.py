@@ -1018,7 +1018,8 @@ add(way_overview,
     rows=[["1  score",
            "the ATAC peak matrix of every ATAC dataset — i of them, nᵢ cells each — plus gene "
            "annotation for one common set of G genes",
-           "gene activity: (Σᵢ nᵢ) × G — one score per gene for every ATAC cell"],
+           "gene activity: (Σᵢ nᵢ) × G — each dataset scored on its own, then placed side by side "
+           "along cells"],
           ["2  stack and mask",
            "gene activity + every measured RNA dataset, all on the same G genes, under one "
            "normalization per dataset; the RNA side contributes n_RNA rows in total",

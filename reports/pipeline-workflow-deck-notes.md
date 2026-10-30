@@ -413,7 +413,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 | Step | What goes in | What comes out |
 |---|---|---|
-| 1  score | the ATAC peak matrix of every ATAC dataset — i of them, nᵢ cells each — plus gene annotation for one common set of G genes | gene activity: (Σᵢ nᵢ) × G — one score per gene for every ATAC cell |
+| 1  score | the ATAC peak matrix of every ATAC dataset — i of them, nᵢ cells each — plus gene annotation for one common set of G genes | gene activity: (Σᵢ nᵢ) × G — each dataset scored on its own, then placed side by side along cells |
 | 2  stack and mask | gene activity + every measured RNA dataset, all on the same G genes, under one normalization per dataset; the RNA side contributes n_RNA rows in total | X: (Σᵢ nᵢ + n_RNA) × G, plus a mask of the same shape, row by row measured or scored |
 | 3  infer | X + mask, the TF list, the target rule, the cell grouping; T regulators | GRN matrix: T × G, written as an edge list |
 
