@@ -1003,7 +1003,15 @@ add(way_overview,
           "in practice the RNA intersection sets G, and the intersection is what shrinks with every "
           "dataset added. Report G, the number of genes each dataset cost, and whether the loss is "
           "concentrated in one dataset, since that usually means a different annotation build rather "
-          "than real biology. Two consequences for the rest of the step: the mask needs a second "
+          "than real biology. Nothing is added to the column axis when the blocks stack: G is fixed "
+          "before the RNA arrives, and each RNA dataset is subset down to it, because a matrix with "
+          "four different column sets cannot be one matrix. If you would rather keep every gene, "
+          "the axis becomes the union and every row has values only on its own dataset's genes — "
+          "which turns the mask from two states into three, measured, scored and absent, and asks "
+          "the network to cope with missing columns. That is a decision to make out loud, and it is "
+          "usually the wrong one: the booster fits one regression per column, so extra columns cost "
+          "time and add noise, and the targets you actually score against are a subset of G anyway. "
+          "Two consequences for the rest of the step: the mask needs a second "
           "field, the dataset each row came from, because pooled rows from four labs are not "
           "comparable in the way rows from one are; and the network should be run per RNA dataset "
           "once as a check, since the edge overlap between them is a batch effect you can measure "
@@ -1021,8 +1029,8 @@ add(way_overview,
            "gene activity: (Σᵢ nᵢ) × G — each dataset scored on its own, then placed side by side "
            "along cells"],
           ["2  stack and mask",
-           "gene activity + every measured RNA dataset, all on the same G genes, under one "
-           "normalization per dataset; the RNA side contributes n_RNA rows in total",
+           "gene activity + every measured RNA dataset, each cut down to the same G genes — the RNA "
+           "matrices are wider — under one normalization per dataset; n_RNA rows in total",
            "X: (Σᵢ nᵢ + n_RNA) × G, plus a mask of the same shape, row by row measured or scored"],
           ["3  infer",
            "X + mask, the TF list, the target rule, the cell grouping; T regulators",
