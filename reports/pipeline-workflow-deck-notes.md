@@ -119,25 +119,25 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Every row returns an embedding — k numbers per cell — or a matching that turns into one in a line of code*
 
-| Method | What you get out | Needs a shared gene axis? | Citation |
+| Method | What you get out | ATAC goes in as | Citation |
 |---|---|---|---|
-| scSAGA | joint embedding (30-d) + the matching it came from | no — peaks are fine | Aluru lab, bioRxiv 2026 |
-| Pamona | joint embedding + matching; labels cells shared vs dataset-specific | no | Cao et al., Bioinformatics 2021 |
-| SCOT | matching + one dataset rewritten in the other's feature space — no embedding | no | Demetci et al., RECOMB 2020 |
-| LIGER | joint embedding + per-dataset gene loadings | yes | Welch et al., Cell 2019 |
-| Seurat v5 | joint embedding; can also predict the other modality | yes | Hao et al., Nat Biotechnol 2024 |
-| Harmony | joint embedding, nothing else | yes | Korsunsky et al., Nat Methods 2019 |
-| scGT | joint embedding | no | Bioinformatics 2025 |
-| scMODAL | joint embedding, built from a few known linked features | no | Nat Commun 2025 |
-| scHPGT | joint embedding, built with a regulatory prior | no | Bioinformatics 2026 |
+| scSAGA | joint embedding (30-d) + the matching it came from | peaks — raw | Aluru lab, bioRxiv 2026 |
+| Pamona | joint embedding + matching; labels cells shared vs dataset-specific | peaks — raw | Cao et al., Bioinformatics 2021 |
+| SCOT | matching + one dataset rewritten in the other's feature space — no embedding | peaks — raw | Demetci et al., RECOMB 2020 |
+| LIGER | joint embedding + per-dataset gene loadings | gene activity | Welch et al., Cell 2019 |
+| Seurat v5 | joint embedding; can also predict the other modality | gene activity | Hao et al., Nat Biotechnol 2024 |
+| Harmony | joint embedding, nothing else | gene activity | Korsunsky et al., Nat Methods 2019 |
+| scGT | joint embedding | peaks — raw | Bioinformatics 2025 |
+| scMODAL | joint embedding, built from a few known linked features | peaks — raw | Nat Commun 2025 |
+| scHPGT | joint embedding, built with a regulatory prior | peaks — raw | Bioinformatics 2026 |
 
 *Methods that integrate and impute in one model are on the Way 2 slides — they already return the matrix, so they skip this step's output.*
 
-> **THE AXIS DECIDES THE SHORTLIST** — if ATAC enters as peaks, only the transport and manifold methods can run; if it enters as gene activity, the shared-axis methods join — but the scores are then flattered, so record which space was used
+> **THE INPUT FORM DECIDES THE SHORTLIST** — feed raw peaks and only the transport and manifold methods can run; convert ATAC into gene activity and LIGER, Seurat and Harmony join — but the scores are then flattered, so record which form was used
 
 **Speaker notes**
 
-> These methods do not all return the same kind of object, and the papers use different words for it — aligned embedding, latent, joint latent, shared factors. They all mean the same thing: k numbers per cell, every dataset in one space, so distances between cells mean something. Everything reduces to three outputs: a joint embedding, which step 2 uses directly; a matching, a cell-to-cell probability matrix that must be turned into a neighbour list or an embedding first; or an imputed expression matrix, in which case step 2 is already done. scSAGA gives an embedding of thirty dimensions plus the matching it came from. Pamona gives both and also labels cells as shared or dataset-specific. SCOT is easy to get wrong: it gives a matching plus a barycentric projection that rewrites one dataset in the other's feature space — not a low-dimensional embedding — so it is not a drop-in for a kNN imputer, though if the target domain is RNA the projection is already an expression matrix. LIGER gives an embedding plus per-dataset gene loadings. The requirement that is not in the table is the ATAC feature space: LIGER, Seurat and Harmony need RNA and ATAC on a shared axis, so ATAC must arrive as gene activity. The transport methods do not care.
+> These methods do not all return the same kind of object, and the papers use different words for it — aligned embedding, latent, joint latent, shared factors. They all mean the same thing: k numbers per cell, every dataset in one space, so distances between cells mean something. Everything reduces to three outputs: a joint embedding, which step 2 uses directly; a matching, a cell-to-cell probability matrix that must be turned into a neighbour list or an embedding first; or an imputed expression matrix, in which case step 2 is already done. scSAGA gives an embedding of thirty dimensions plus the matching it came from. Pamona gives both and also labels cells as shared or dataset-specific. SCOT is easy to get wrong: it gives a matching plus a barycentric projection that rewrites one dataset in the other's feature space — not a low-dimensional embedding — so it is not a drop-in for a kNN imputer, though if the target domain is RNA the projection is already an expression matrix. LIGER gives an embedding plus per-dataset gene loadings. The third column is the one that decides whether a method can run at all: LIGER, Seurat and Harmony need RNA and ATAC on a shared axis, so ATAC has to be converted into gene activity before they start — a per-gene score summed over each gene's body and promoter, which loses distal enhancers. The transport and manifold methods read the peak matrix as it is.
 
 ---
 
@@ -332,18 +332,18 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *Two methods need no paired cells; every other one in this family does*
 
-| Method | Kind of model | What you get out | Citation |
-|---|---|---|---|
-| MultiVI | joint VAE; a per-cell mask says which modality is missing | joint embedding + imputed expression for the ATAC cells | Ashuach et al., Nat Methods 2023 |
-| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | joint embedding + imputed expression for the ATAC cells | Cao & Gao, Nat Biotechnol 2022 |
+| Method | Kind of model | What it takes in | What you get out | Citation |
+|---|---|---|---|---|
+| MultiVI | joint VAE; a per-cell mask says which modality is missing | raw counts for both — RNA per gene, ATAC per peak — plus the mask. No gene activity. | joint embedding + imputed expression for the ATAC cells | Ashuach et al., Nat Methods 2023 |
+| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | raw counts for both — RNA per gene, ATAC per peak — plus the prior graph. No gene activity. | joint embedding + imputed expression for the ATAC cells | Cao & Gao, Nat Biotechnol 2022 |
 
-*Left out, and why: scGALA (anchor pairs), Polarbear (a paired subset), BABEL and Cisformer (pairs inside the checkpoint), scButterfly (pseudo-pairs from labels), scDCT (co-assay training), scGPT (no ATAC path).*
+*Neither one converts ATAC to gene activity: both read the peak matrix, which is why they can run without a shared gene axis. Left out, and why: scGALA (anchor pairs), Polarbear (a paired subset), BABEL and Cisformer (pairs inside the checkpoint), scButterfly (pseudo-pairs from labels), scDCT (co-assay training), scGPT (no ATAC path).*
 
 > **WHAT STEP 2 NEEDS** — a joint embedding to look up neighbours in, and one gene-by-cell block of imputed expression for the ATAC cells — both methods return both
 
 **Speaker notes**
 
-> Two methods, because these two are the only ones that run when the RNA and ATAC matrices share no cells — and that is the case this pipeline is built for: the ATAC cells that need values were never measured for RNA, so a method that expects a paired cell to learn from has nothing to learn from. MultiVI is built for exactly this shape of data: every cell carries a mask saying what was measured, so a cell can be RNA-only, ATAC-only or both, and one latent is learned for all of them; whatever a cell is missing gets decoded. GLUE does the same job from the other side — a graph of peak-to-gene links supplies the correspondence the data does not have, so the two modalities are aligned through the prior rather than through shared cells. Both return the same two objects, and the table uses one phrase for the second on purpose. A joint embedding is the k numbers per cell the model places every cell at — the same object as H in Way 1, except that here it lives inside the model and is only written out if you export it; that is the z on the previous slide. Imputed expression for the ATAC cells is one gene-by-cell block on the same gene axis as the measured RNA, holding the values those cells would have had. Stack that block under the measured rows, one normalization, and you have X. Everything else is left out for a reason: scGALA wants anchor pairs, Polarbear a small paired subset to train its translator, BABEL and Cisformer carry pairs inside their checkpoints, scButterfly manufactures pseudo-pairs from cell-type labels, and scDCT trains on co-assay cells. scGPT has no ATAC input path at all — checked in this repo's own code review.
+> Two methods, because these two are the only ones that run when the RNA and ATAC matrices share no cells — and that is the case this pipeline is built for: the ATAC cells that need values were never measured for RNA, so a method that expects a paired cell to learn from has nothing to learn from. MultiVI is built for exactly this shape of data: every cell carries a mask saying what was measured, so a cell can be RNA-only, ATAC-only or both, and one latent is learned for all of them; whatever a cell is missing gets decoded. GLUE does the same job from the other side — a graph of peak-to-gene links supplies the correspondence the data does not have, so the two modalities are aligned through the prior rather than through shared cells — and that prior has to be built from paired data somewhere, either yours or a public multiome reference, which is the honest cost of this option. On the input column: neither method asks you to convert ATAC into gene activity. Both read the peak matrix as counts, which is why they can run at all when the two matrices share no gene axis; the gene-level information reaches GLUE through the prior graph and reaches MultiVI through the decoder. That is the opposite of Way 1's LIGER, Seurat and Harmony, which do need gene activity before they will start. Both return the same two objects, and the table uses one phrase for the second on purpose. A joint embedding is the k numbers per cell the model places every cell at — the same object as H in Way 1, except that here it lives inside the model and is only written out if you export it; that is the z on the previous slide. Imputed expression for the ATAC cells is one gene-by-cell block on the same gene axis as the measured RNA, holding the values those cells would have had. Stack that block under the measured rows, one normalization, and you have X. Everything else is left out for a reason: scGALA wants anchor pairs, Polarbear a small paired subset to train its translator, BABEL and Cisformer carry pairs inside their checkpoints, scButterfly manufactures pseudo-pairs from cell-type labels, and scDCT trains on co-assay cells. scGPT has no ATAC input path at all — checked in this repo's own code review.
 
 ---
 

@@ -556,33 +556,38 @@ add(step_methods,
           "projection that rewrites one dataset in the other's feature space — not a "
           "low-dimensional embedding — so it is not a drop-in for a kNN imputer, though if the "
           "target domain is RNA the projection is already an expression matrix. LIGER gives an "
-          "embedding plus per-dataset gene loadings. The requirement that is not in the table is "
-          "the ATAC feature space: LIGER, Seurat and Harmony need RNA and ATAC on a shared axis, "
-          "so ATAC must arrive as gene activity. The transport methods do not care."),
+          "embedding plus per-dataset gene loadings. The third column is the one that decides "
+          "whether a method can run at all: LIGER, Seurat and Harmony need RNA and ATAC on a shared "
+          "axis, so ATAC has to be converted into gene activity before they start — a per-gene "
+          "score summed over each gene's body and promoter, which loses distal enhancers. The "
+          "transport and manifold methods read the peak matrix as it is."),
     accent=a1, eyebrow="WAY 1 · STEP 1 OF 3",
     title="Way 1 · step 1 — integration: the methods",
     kicker="Every row returns an embedding — k numbers per cell — or a matching that turns into "
            "one in a line of code",
-    header=["Method", "What you get out", "Needs a shared gene axis?", "Citation"],
-    rows=[["scSAGA", "joint embedding (30-d) + the matching it came from", "no — peaks are fine",
+    header=["Method", "What you get out", "ATAC goes in as", "Citation"],
+    rows=[["scSAGA", "joint embedding (30-d) + the matching it came from", "peaks — raw",
            "Aluru lab, bioRxiv 2026"],
-          ["Pamona", "joint embedding + matching; labels cells shared vs dataset-specific", "no",
-           "Cao et al., Bioinformatics 2021"],
+          ["Pamona", "joint embedding + matching; labels cells shared vs dataset-specific",
+           "peaks — raw", "Cao et al., Bioinformatics 2021"],
           ["SCOT", "matching + one dataset rewritten in the other's feature space — no embedding",
-           "no", "Demetci et al., RECOMB 2020"],
-          ["LIGER", "joint embedding + per-dataset gene loadings", "yes", "Welch et al., Cell 2019"],
-          ["Seurat v5", "joint embedding; can also predict the other modality", "yes",
+           "peaks — raw", "Demetci et al., RECOMB 2020"],
+          ["LIGER", "joint embedding + per-dataset gene loadings", "gene activity",
+           "Welch et al., Cell 2019"],
+          ["Seurat v5", "joint embedding; can also predict the other modality", "gene activity",
            "Hao et al., Nat Biotechnol 2024"],
-          ["Harmony", "joint embedding, nothing else", "yes", "Korsunsky et al., Nat Methods 2019"],
-          ["scGT", "joint embedding", "no", "Bioinformatics 2025"],
-          ["scMODAL", "joint embedding, built from a few known linked features", "no",
+          ["Harmony", "joint embedding, nothing else", "gene activity",
+           "Korsunsky et al., Nat Methods 2019"],
+          ["scGT", "joint embedding", "peaks — raw", "Bioinformatics 2025"],
+          ["scMODAL", "joint embedding, built from a few known linked features", "peaks — raw",
            "Nat Commun 2025"],
-          ["scHPGT", "joint embedding, built with a regulatory prior", "no", "Bioinformatics 2026"]],
-    widths=[1.90, 6.05, 2.10, 2.05],
-    strip_label="THE AXIS DECIDES THE SHORTLIST",
-    strip_text=("if ATAC enters as peaks, only the transport and manifold methods can run; if it "
-                "enters as gene activity, the shared-axis methods join — but the scores are then "
-                "flattered, so record which space was used"),
+          ["scHPGT", "joint embedding, built with a regulatory prior", "peaks — raw",
+           "Bioinformatics 2026"]],
+    widths=[1.90, 5.85, 2.30, 2.05],
+    strip_label="THE INPUT FORM DECIDES THE SHORTLIST",
+    strip_text=("feed raw peaks and only the transport and manifold methods can run; convert ATAC "
+                "into gene activity and LIGER, Seurat and Harmony join — but the scores are then "
+                "flattered, so record which form was used"),
     tail="Methods that integrate and impute in one model are on the Way 2 slides — they already "
          "return the matrix, so they skip this step's output.")
 
@@ -869,7 +874,14 @@ add(step_methods,
           "ATAC-only or both, and one latent is learned for all of them; whatever a cell is "
           "missing gets decoded. GLUE does the same job from the other side — a graph of "
           "peak-to-gene links supplies the correspondence the data does not have, so the two "
-          "modalities are aligned through the prior rather than through shared cells. Both return "
+          "modalities are aligned through the prior rather than through shared cells — and that "
+          "prior has to be built from paired data somewhere, either yours or a public multiome "
+          "reference, which is the honest cost of this option. On the input column: neither method "
+          "asks you to convert ATAC into gene activity. Both read the peak matrix as counts, which "
+          "is why they can run at all when the two matrices share no gene axis; the gene-level "
+          "information reaches GLUE through the prior graph and reaches MultiVI through the "
+          "decoder. That is the opposite of Way 1's LIGER, Seurat and Harmony, which do need gene "
+          "activity before they will start. Both return "
           "the same two objects, and the table uses one phrase for the second on purpose. A joint "
           "embedding is the k numbers per cell the model places every cell at — the same object as "
           "H in Way 1, except that here it lives inside the model and is only written out if you "
@@ -884,20 +896,24 @@ add(step_methods,
     accent=a2, eyebrow="WAY 2 · STEP 1 OF 2",
     title="Way 2 · step 1 — the joint model: the methods",
     kicker="Two methods need no paired cells; every other one in this family does",
-    header=["Method", "Kind of model", "What you get out", "Citation"],
+    header=["Method", "Kind of model", "What it takes in", "What you get out", "Citation"],
     rows=[["MultiVI", "joint VAE; a per-cell mask says which modality is missing",
+           "raw counts for both — RNA per gene, ATAC per peak — plus the mask. No gene activity.",
            "joint embedding + imputed expression for the ATAC cells",
            "Ashuach et al., Nat Methods 2023"],
           ["GLUE / scGLUE", "VAE aligned through a peak–gene guidance graph",
+           "raw counts for both — RNA per gene, ATAC per peak — plus the prior graph. No gene "
+           "activity.",
            "joint embedding + imputed expression for the ATAC cells",
            "Cao & Gao, Nat Biotechnol 2022"]],
-    widths=[1.75, 5.15, 3.60, 1.60],
+    widths=[1.45, 2.85, 3.45, 2.85, 1.50],
     strip_label="WHAT STEP 2 NEEDS",
     strip_text=("a joint embedding to look up neighbours in, and one gene-by-cell block of imputed "
                 "expression for the ATAC cells — both methods return both"),
-    tail="Left out, and why: scGALA (anchor pairs), Polarbear (a paired subset), BABEL and Cisformer "
-         "(pairs inside the checkpoint), scButterfly (pseudo-pairs from labels), scDCT (co-assay "
-         "training), scGPT (no ATAC path).")
+    tail="Neither one converts ATAC to gene activity: both read the peak matrix, which is why they "
+         "can run without a shared gene axis. Left out, and why: scGALA (anchor pairs), Polarbear (a "
+         "paired subset), BABEL and Cisformer (pairs inside the checkpoint), scButterfly "
+         "(pseudo-pairs from labels), scDCT (co-assay training), scGPT (no ATAC path).")
 
 add(step_checks,
     note=("The Way 1 checks still apply, with one precondition: you have to save the latent. If "
