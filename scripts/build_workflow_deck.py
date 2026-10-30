@@ -995,7 +995,19 @@ add(way_overview,
           "against different annotations they have to be re-scored onto one; the order of the "
           "blocks must be written down once, because the mask and the cell-type labels are indexed "
           "by row; and the scoring tools hand back genes by cells, so the matrix is transposed once "
-          "at that boundary and never again."),
+          "at that boundary and never again. G is the part people get wrong once there is more than "
+          "one dataset of either kind. Three ATAC datasets and four RNA datasets carry seven gene "
+          "lists; G is the intersection of all seven, matched on stable gene identifiers such as "
+          "Ensembl IDs rather than symbols, because symbols alias and repeat across builds. The ATAC "
+          "side barely constrains it — you re-score each ATAC dataset onto the chosen annotation, so "
+          "in practice the RNA intersection sets G, and the intersection is what shrinks with every "
+          "dataset added. Report G, the number of genes each dataset cost, and whether the loss is "
+          "concentrated in one dataset, since that usually means a different annotation build rather "
+          "than real biology. Two consequences for the rest of the step: the mask needs a second "
+          "field, the dataset each row came from, because pooled rows from four labs are not "
+          "comparable in the way rows from one are; and the network should be run per RNA dataset "
+          "once as a check, since the edge overlap between them is a batch effect you can measure "
+          "before you attribute anything to biology."),
     accent=a3, way=3,
     title="Way 3 — gene activity, then infer",
     kicker="No translation and no imputation: ATAC is projected onto the gene axis and stacked "
@@ -1008,8 +1020,8 @@ add(way_overview,
            "annotation for one common set of G genes",
            "gene activity: (Σᵢ nᵢ) × G — one score per gene for every ATAC cell"],
           ["2  stack and mask",
-           "gene activity + measured RNA on the same G genes, under one normalization; the RNA "
-           "side contributes n_RNA rows",
+           "gene activity + every measured RNA dataset, all on the same G genes, under one "
+           "normalization per dataset; the RNA side contributes n_RNA rows in total",
            "X: (Σᵢ nᵢ + n_RNA) × G, plus a mask of the same shape, row by row measured or scored"],
           ["3  infer",
            "X + mask, the TF list, the target rule, the cell grouping; T regulators",
@@ -1022,9 +1034,9 @@ add(way_overview,
                             "whichever has more variance.", 0.80),
            ("SCALE", "ArchR and Signac both scale with sparse matrices; no OT, no deep model.",
             0.80)],
-    tail="The arithmetic, for two ATAC datasets and one RNA dataset: step 1 gives (n₁+n₂) × G, step "
-         "2 gives (n₁+n₂+n₃) × G, step 3 gives T × G. Row order is fixed when the blocks are "
-         "stacked, and the mask is written in that same order.")
+    tail="The arithmetic, for three ATAC and four RNA datasets: step 1 gives (n₁+n₂+n₃) × G, step 2 "
+         "gives (n₁+…+n₇) × G, step 3 gives T × G — where G is the genes present in every one of the "
+         "seven, matched on stable IDs. Row order is fixed when the blocks are stacked.")
 
 add(step_methods,
     note=("ArchR and Signac both compute gene scores; the difference is the window. Signac "
