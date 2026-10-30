@@ -332,24 +332,24 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 *All of these learn their own embedding and return expression for the cells that lacked it*
 
-| Method | Kind of model | What you get out | Citation |
-|---|---|---|---|
-| MultiVI | joint VAE; the missing modality is masked per cell | joint latent + imputed expression for the missing block | Ashuach et al., Nat Methods 2023 |
-| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | aligned latent; can translate one modality into the other | Cao & Gao, Nat Biotechnol 2022 |
-| scGALA | graph attention network on gene activity + its own anchors | imputed expression for the query cells | Nat Commun 2025 |
-| scButterfly | two VAEs + a translator | imputed expression, paired or unpaired | Nat Commun 2024 |
-| scDCT | conditional diffusion | imputed expression, paired or unpaired | Brief Bioinform 2025 |
-| Polarbear | VAE + a linear translator between two VAEs | imputed expression; also the 0.22 Pearson ceiling | J Comput Biol 2022 |
-| BABEL | two autoencoders; translation in both directions | RNA from ATAC, and ATAC from RNA | Wu et al., PNAS 2021 |
-| Cisformer | transformer over 10,000 open regions per cell, pretrained | imputed expression from ATAC alone | Genome Biol 2025 |
+| Method | Kind of model | What you get out | Needs paired cells? | Citation |
+|---|---|---|---|---|
+| MultiVI | joint VAE; the missing modality is masked per cell | joint latent + imputed expression for the missing block | no — the mask takes any mix | Ashuach et al., Nat Methods 2023 |
+| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | aligned latent; can translate one modality into the other | no — aligned by the prior | Cao & Gao, Nat Biotechnol 2022 |
+| scGALA | graph attention network on gene activity + its own anchors | imputed expression for the query cells | yes — anchor pairs | Nat Commun 2025 |
+| scButterfly | two VAEs + a translator | imputed expression | no — pseudo-pairs cells of the same type | Nat Commun 2024 |
+| scDCT | conditional diffusion | imputed expression | yes — co-assay training data | Brief Bioinform 2025 |
+| Polarbear | VAE + a linear translator between two VAEs | imputed expression; also the 0.22 Pearson ceiling | a small subset | J Comput Biol 2022 |
+| BABEL | two autoencoders; translation in both directions | RNA from ATAC, and ATAC from RNA | at training — pretrained on pairs | Wu et al., PNAS 2021 |
+| Cisformer | transformer over 10,000 open regions per cell, pretrained | imputed expression from ATAC alone | at inference no — pretrained on pairs | Genome Biol 2025 |
 
-*Checked in this repo's code review (reports/imputation-methods-review.md): scGPT has no shipped ATAC input path, so it is not usable at this step without custom work.*
+*Only MultiVI and GLUE are built for fully unpaired data; the rest need paired cells somewhere — as anchors, as a small subset, or in the checkpoint they start from. scGPT has no shipped ATAC path at all.*
 
 > **READ FIRST** — Liu et al., Nat Methods 2025 — 40 methods benchmarked on dimension reduction, batch correction, clustering, label transfer and imputation, with a decision guideline
 
 **Speaker notes**
 
-> These are the best-benchmarked imputers, and they share one property: they take the raw matrices and learn their own joint representation internally, so adopting one does not remove the need to integrate — it moves the integration inside. MultiVI is the principled version of this pipeline's step: a joint VAE that masks the missing modality per cell and decodes it. GLUE aligns through a prior of peak-to-gene links, which makes it prior-driven rather than anchor-free. scGALA needs gene activity and its own anchor pairs, so it is partly a Way 1 method. scButterfly, scDCT and Polarbear are translators between two autoencoders; BABEL is the same idea without a shared latent requirement; Cisformer takes ATAC open regions only. One correction to the standard list: scGPT is often cited as an imputer, but the released code has no ATAC input path, so it is not a drop-in here — that was checked in this repo's own code review.
+> These are the best-benchmarked imputers, and they share one property: they take the raw matrices and learn their own joint representation internally, so adopting one does not remove the need to integrate — it moves the integration inside. MultiVI is the principled version of this pipeline's step: a joint VAE that masks the missing modality per cell and decodes it. GLUE aligns through a prior of peak-to-gene links, which makes it prior-driven rather than anchor-free. scGALA needs gene activity and its own anchor pairs, so it is partly a Way 1 method. scButterfly, scDCT and Polarbear are translators between two autoencoders; BABEL is the same idea without a shared latent requirement; Cisformer takes ATAC open regions only. The new column is the one that decides whether this route is open to you at all: only MultiVI and GLUE are built for data with no shared cells — MultiVI because the per-cell mask can say RNA, ATAC or both, and GLUE because a peak–gene prior does the aligning. Everything else wants pairs somewhere: scGALA as anchors, Polarbear as a small subset that trains the translator, BABEL and Cisformer inside the checkpoint they start from, and scButterfly by building pseudo-pairs out of cells of the same type — which means it needs cell-type labels before it can say anything. Pairing also buys the answer key: with fully unpaired data this route runs, but there is nothing local to grade it against. One correction to the standard list: scGPT is often cited as an imputer, but the released code has no ATAC input path, so it is not a drop-in here — that was checked in this repo's own code review.
 
 ---
 
