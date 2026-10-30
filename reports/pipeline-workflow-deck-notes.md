@@ -413,9 +413,9 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 | Step | What goes in | What comes out |
 |---|---|---|
-| 1  score | the ATAC peak matrix + gene annotation (gene bodies, promoters); optionally peak–gene links for distal enhancers | one score per gene per cell (genes × cells) |
-| 2  stack and mask | gene activity + measured RNA on one shared gene axis, under one normalization | X (cells × genes) + a mask marking each row measured or scored |
-| 3  infer | X + mask, the TF list, the target rule, the cell grouping | GRN matrix: TF × gene importances, as an edge list |
+| 1  score | the ATAC peak matrix of every ATAC dataset — i of them, nᵢ cells each — plus gene annotation for one common set of G genes | gene activity: (Σᵢ nᵢ) × G — one score per gene for every ATAC cell |
+| 2  stack and mask | gene activity + measured RNA on the same G genes, under one normalization; the RNA side contributes n_RNA rows | X: (Σᵢ nᵢ + n_RNA) × G, plus a mask of the same shape, row by row measured or scored |
+| 3  infer | X + mask, the TF list, the target rule, the cell grouping; T regulators | GRN matrix: T × G, written as an edge list |
 
 > **THE GRN RECEIVES** — measured RNA plus accessibility-derived scores on the same gene axis — a different quantity, not a worse measurement of the same one
 
@@ -425,11 +425,11 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 **SCALE** — ArchR and Signac both scale with sparse matrices; no OT, no deep model.
 
-*Everything downstream of the stack is identical to Way 1 step 3 — the difference is what the columns of the matrix mean.*
+*The arithmetic, for two ATAC datasets and one RNA dataset: step 1 gives (n₁+n₂) × G, step 2 gives (n₁+n₂+n₃) × G, step 3 gives T × G. Row order is fixed when the blocks are stacked, and the mask is written in that same order.*
 
 **Speaker notes**
 
-> Way 3 deletes the hard step instead of solving it. ATAC goes to per-gene scores using the annotation — sum the open chromatin across a gene's body and promoter, optionally adding distal regions — then those scores are stacked with measured RNA on the same gene axis, a mask records which rows are scores, and the network runs on the whole matrix. Nothing is imputed, so nothing can be imputed wrongly. But the two blocks are not the same quantity: one is transcript abundance, the other is accessibility near a gene, and a model given both will lean on whichever block has more variance. Saying that out loud is the entire job of the mask here.
+> Way 3 deletes the hard step instead of solving it. ATAC goes to per-gene scores using the annotation — sum the open chromatin across a gene's body and promoter, optionally adding distal regions — then those scores are stacked with measured RNA on the same gene axis, a mask records which rows are scores, and the network runs on the whole matrix. Nothing is imputed, so nothing can be imputed wrongly. But the two blocks are not the same quantity: one is transcript abundance, the other is accessibility near a gene, and a model given both will lean on whichever block has more variance. Saying that out loud is the entire job of the mask here. The dimensions are worth saying slowly, because the row count is where people lose track. Call the number of ATAC datasets i and their cell counts n-one to n-i, the measured RNA cells n-RNA, the genes on the shared axis G, and the regulators T. Step one is applied to each ATAC dataset separately — the annotation does not change — so its output is the ATAC blocks side by side: sum of n-i rows by G columns. Step two adds the RNA rows underneath and changes nothing else, so X is sum of n-i plus n-RNA rows by G columns, with a mask the same shape. Step three consumes X and returns T by G. Three things have to be fixed for any of that to add up: G must be one set of genes for every dataset, so if the ATAC datasets were quantified against different annotations they have to be re-scored onto one; the order of the blocks must be written down once, because the mask and the cell-type labels are indexed by row; and the scoring tools hand back genes by cells, so the matrix is transposed once at that boundary and never again.
 
 ---
 
