@@ -305,7 +305,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 | Step | What goes in | What comes out |
 |---|---|---|
-| 1  integrate and decode | the RNA matrix and the ATAC matrix, plus a mask of which modality each cell has | a trained model; z, its internal latent (export it only if you want a check); and decoded expression for the ATAC cells |
+| 1  integrate and decode | the RNA matrix and the ATAC matrix, plus a mask of which modality each cell has | a trained model; z, its internal latent (export it only if you want a check); and imputed expression for the ATAC cells |
 | 2  grn inference | X — the measured RNA rows stacked with the decoded ATAC rows, one gene axis, one normalization — plus the TF list and the target rule | GRN matrix: TF × gene importances, as an edge list, three seeds |
 
 > **THE GRN RECEIVES** — the same kind of matrix as Way 1 — measured rows plus imputed rows — produced in a single fit rather than two
@@ -320,7 +320,7 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 **Speaker notes**
 
-> Two boxes, and the first one does both jobs. Box one takes the RNA matrix and the ATAC matrix and learns a model; inside that model every cell is compressed to a short vector of numbers — the latent, written z — which is the same kind of object as H in Way 1, except that it lives inside the model and is never written out. If you export z you can run the FOSCTTM check on it; if you do not, there is nothing between the boxes to examine. The decoder then reads z and produces expression for the cells that had no RNA. What it produces is only the decoded rows: X is those rows stacked underneath the measured RNA rows, on one gene axis, under one normalization, with a mask saying which row is which — and that stacked X is what arboreto receives, cells as rows and genes as columns. One trap: the decoder's output has to be mapped into the same normalization as the measured rows, or the two blocks are separable and the booster learns which block a cell came from rather than biology. On the paired cells: the model does not need them to train, since the mask already says which cells have which modality. They are held out because they are the only answer key for the decoded rows, and this route has no embedding artifact to grade instead — with fully unpaired data the first box cannot be checked at all, and simulation is the only honest test. Two numbers to keep beside the result: about 0.22 gene-wise Pearson is the ceiling for ATAC to RNA, so 0.9 means leakage and 0.05 means nothing was produced.
+> Two boxes, and the first one does both jobs. Box one takes the RNA matrix and the ATAC matrix and learns a model; inside that model every cell is compressed to a short vector of numbers — the latent, written z — which is the same kind of object as H in Way 1, except that it lives inside the model and is never written out. If you export z you can run the FOSCTTM check on it; if you do not, there is nothing between the boxes to examine. The decoder then reads z and produces expression for the cells that had no RNA. What it produces is only those rows: X is the imputed rows stacked underneath the measured RNA rows, on one gene axis, under one normalization, with a mask saying which row is which — and that stacked X is what arboreto receives, cells as rows and genes as columns. One trap: the decoder's output has to be mapped into the same normalization as the measured rows, or the two blocks are separable and the booster learns which block a cell came from rather than biology. On the paired cells: the model does not need them to train, since the mask already says which cells have which modality. They are held out because they are the only answer key for the decoded rows, and this route has no embedding artifact to grade instead — with fully unpaired data the first box cannot be checked at all, and simulation is the only honest test. Two numbers to keep beside the result: about 0.22 gene-wise Pearson is the ceiling for ATAC to RNA, so 0.9 means leakage and 0.05 means nothing was produced.
 
 ---
 
@@ -330,26 +330,20 @@ Each slide below gives the text that goes on the slide, then the speaker notes. 
 
 **On the slide**
 
-*All of these learn their own embedding and return expression for the cells that lacked it*
+*Two methods need no paired cells; every other one in this family does*
 
-| Method | Kind of model | What you get out | Needs paired cells? | Citation |
-|---|---|---|---|---|
-| MultiVI | joint VAE; the missing modality is masked per cell | joint latent + imputed expression for the missing block | no — the mask takes any mix | Ashuach et al., Nat Methods 2023 |
-| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | aligned latent; can translate one modality into the other | no — aligned by the prior | Cao & Gao, Nat Biotechnol 2022 |
-| scGALA | graph attention network on gene activity + its own anchors | imputed expression for the query cells | yes — anchor pairs | Nat Commun 2025 |
-| scButterfly | two VAEs + a translator | imputed expression | no — pseudo-pairs cells of the same type | Nat Commun 2024 |
-| scDCT | conditional diffusion | imputed expression | yes — co-assay training data | Brief Bioinform 2025 |
-| Polarbear | VAE + a linear translator between two VAEs | imputed expression; also the 0.22 Pearson ceiling | a small subset | J Comput Biol 2022 |
-| BABEL | two autoencoders; translation in both directions | RNA from ATAC, and ATAC from RNA | at training — pretrained on pairs | Wu et al., PNAS 2021 |
-| Cisformer | transformer over 10,000 open regions per cell, pretrained | imputed expression from ATAC alone | at inference no — pretrained on pairs | Genome Biol 2025 |
+| Method | Kind of model | What you get out | Citation |
+|---|---|---|---|
+| MultiVI | joint VAE; a per-cell mask says which modality is missing | joint embedding + imputed expression for the ATAC cells | Ashuach et al., Nat Methods 2023 |
+| GLUE / scGLUE | VAE aligned through a peak–gene guidance graph | joint embedding + imputed expression for the ATAC cells | Cao & Gao, Nat Biotechnol 2022 |
 
-*Only MultiVI and GLUE are built for fully unpaired data; the rest need paired cells somewhere — as anchors, as a small subset, or in the checkpoint they start from. scGPT has no shipped ATAC path at all.*
+*Left out, and why: scGALA (anchor pairs), Polarbear (a paired subset), BABEL and Cisformer (pairs inside the checkpoint), scButterfly (pseudo-pairs from labels), scDCT (co-assay training), scGPT (no ATAC path).*
 
-> **READ FIRST** — Liu et al., Nat Methods 2025 — 40 methods benchmarked on dimension reduction, batch correction, clustering, label transfer and imputation, with a decision guideline
+> **WHAT STEP 2 NEEDS** — a joint embedding to look up neighbours in, and one gene-by-cell block of imputed expression for the ATAC cells — both methods return both
 
 **Speaker notes**
 
-> These are the best-benchmarked imputers, and they share one property: they take the raw matrices and learn their own joint representation internally, so adopting one does not remove the need to integrate — it moves the integration inside. MultiVI is the principled version of this pipeline's step: a joint VAE that masks the missing modality per cell and decodes it. GLUE aligns through a prior of peak-to-gene links, which makes it prior-driven rather than anchor-free. scGALA needs gene activity and its own anchor pairs, so it is partly a Way 1 method. scButterfly, scDCT and Polarbear are translators between two autoencoders; BABEL is the same idea without a shared latent requirement; Cisformer takes ATAC open regions only. The new column is the one that decides whether this route is open to you at all: only MultiVI and GLUE are built for data with no shared cells — MultiVI because the per-cell mask can say RNA, ATAC or both, and GLUE because a peak–gene prior does the aligning. Everything else wants pairs somewhere: scGALA as anchors, Polarbear as a small subset that trains the translator, BABEL and Cisformer inside the checkpoint they start from, and scButterfly by building pseudo-pairs out of cells of the same type — which means it needs cell-type labels before it can say anything. Pairing also buys the answer key: with fully unpaired data this route runs, but there is nothing local to grade it against. One correction to the standard list: scGPT is often cited as an imputer, but the released code has no ATAC input path, so it is not a drop-in here — that was checked in this repo's own code review.
+> Two methods, because these two are the only ones that run when the RNA and ATAC matrices share no cells — and that is the case this pipeline is built for: the ATAC cells that need values were never measured for RNA, so a method that expects a paired cell to learn from has nothing to learn from. MultiVI is built for exactly this shape of data: every cell carries a mask saying what was measured, so a cell can be RNA-only, ATAC-only or both, and one latent is learned for all of them; whatever a cell is missing gets decoded. GLUE does the same job from the other side — a graph of peak-to-gene links supplies the correspondence the data does not have, so the two modalities are aligned through the prior rather than through shared cells. Both return the same two objects, and the table uses one phrase for the second on purpose. A joint embedding is the k numbers per cell the model places every cell at — the same object as H in Way 1, except that here it lives inside the model and is only written out if you export it; that is the z on the previous slide. Imputed expression for the ATAC cells is one gene-by-cell block on the same gene axis as the measured RNA, holding the values those cells would have had. Stack that block under the measured rows, one normalization, and you have X. Everything else is left out for a reason: scGALA wants anchor pairs, Polarbear a small paired subset to train its translator, BABEL and Cisformer carry pairs inside their checkpoints, scButterfly manufactures pseudo-pairs from cell-type labels, and scDCT trains on co-assay cells. scGPT has no ATAC input path at all — checked in this repo's own code review.
 
 ---
 
