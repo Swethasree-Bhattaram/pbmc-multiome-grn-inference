@@ -12,6 +12,13 @@ across reference choices when there is more than one RNA dataset.
 Nothing in the code is specific to PBMC, to an organism, to a modality or to a
 number of datasets. **`config.yml` is the only file you edit.**
 
+> **Second entry point.** `README_STEPWISE.md` covers the step-wise experiment
+> (`scripts/stepwise_eval.py`): MultiVI vs scSAGA over the same datasets, with every
+> step scored against the metrics in `workflow.pptx`. Its
+> **["Run on PACE Phoenix — step by step"](README_STEPWISE.md#run-on-pace-phoenix--step-by-step)**
+> section is the runbook for `run_stepwise.slurm` + `setup_stepwise.sh`. The PACE
+> instructions below are for this README's own pipeline (`run_grn.slurm`).
+
 ---
 
 ## Quick start
@@ -220,6 +227,10 @@ preemptible.
 Build the environment **once on a login node** — compute nodes usually have no
 network, so `setup.sh` (which pip-installs scSAGA from GitHub) cannot run inside
 a job.
+
+This section is for `run_grn.slurm` (this pipeline). The step-wise MultiVI/scSAGA
+experiment has its own pair — `run_stepwise.slurm` + `setup_stepwise.sh` — and its
+own runbook: **[README_STEPWISE.md § Run on PACE Phoenix](README_STEPWISE.md#run-on-pace-phoenix--step-by-step)**.
 
 ---
 
