@@ -384,16 +384,28 @@ def _multivi_fit(exp, args, tag, drop_rna_cells=()):
         modalities={"rna_layer": "rna", "batch_key": "rna", "atac_layer": "atac"})
     model = MULTIVI(mdata, n_genes=len(gene_axis), n_regions=len(peak_axis),
                     n_hidden=args.n_hidden, n_latent=args.n_latent)
+    # MultiVI prints nothing while it trains, and nothing is written to
+    # integration/ until it returns, so say what is about to happen and then say
+    # what actually happened.  Without this a CPU fit looks like a hang.
+    log(f"  [{tag}] training MultiVI: {mdata.n_obs} cells, "
+        f"{len(gene_axis)} genes + {len(peak_axis)} peaks, "
+        f"<= {args.epochs} epochs with early stopping.  This is the slow part; "
+        f"nothing is written to {exp.out('multivi', 'integration')} until it ends.")
     t0 = time.time()
     model.train(max_epochs=args.epochs, early_stopping=True,
                 enable_progress_bar=False)
+    try:
+        done = len(model.history.get("elbo_train", []))
+    except Exception:                                         # noqa: BLE001
+        done = "?"
     mdir = exp.out("multivi", "integration",
                    "multivi_model" if tag == "pipeline" else "multivi_model_heldout")
     model.save(mdir, overwrite=True, save_anndata=False)
     log(f"  [{tag}] MultiVI fit: {mdata.n_obs} cells "
         f"({len(rows[exp.anchor])} anchor + {sum(len(rows[a]) for a in exp.atac)} "
         f"ATAC barcodes), {len(gene_axis)} genes, {len(peak_axis)} peaks, "
-        f"{args.epochs} max epochs, {time.time() - t0:.0f}s")
+        f"{done} of {args.epochs} epochs, {time.time() - t0:.0f}s "
+        f"({(time.time() - t0) / max(int(done) if str(done).isdigit() else 1, 1):.1f}s/epoch)")
     return model, mdata, rows
 
 
