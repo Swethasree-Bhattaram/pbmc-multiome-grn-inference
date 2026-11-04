@@ -70,15 +70,17 @@ def _drop_zero_variance(a, b):
 
 
 def hvg_mask(expr, n=100, min_cells=3):
-    """Indices of the n most variable genes of `expr` (genes x cells).
+    """Indices of the n most variable genes of `expr`, which is GENES x CELLS.
 
-    Variance is computed on the values as given (the caller passes
-    log1p-normalised expression).  Genes detected in fewer than `min_cells`
-    cells are excluded first: their variance is numerically large but their
-    correlation is noise.
+    The orientation is not guessed.  An earlier version transposed whenever
+    genes > cells, which silently turned cell indices into gene indices on a
+    900-gene x 90-cell held-out block -- so pFCS and gene-wise rho were computed
+    over the first 90 genes of the axis.  Callers that hold cells x genes must
+    transpose first.
     """
-    e = expr if expr.shape[0] <= expr.shape[1] else expr.T
-    e = np.asarray(e, dtype=np.float32)
+    e = np.asarray(expr, dtype=np.float32)
+    if e.ndim != 2:
+        raise ValueError(f"hvg_mask needs a 2-D genes x cells matrix, got {e.shape}")
     detected = (e > 0).sum(1)
     var = e.var(1, ddof=1)
     var[detected < min_cells] = -np.inf
@@ -327,12 +329,14 @@ def gene_wise_rho(pred, truth, hvg=None):
         sel[np.asarray(hvg)] = True
         ok &= sel
     if ok.sum() < 2:
-        return {"rho_mean": float("nan"), "rho_median": float("nan"), "n_genes": 0}
+        return {"rho_mean": float("nan"), "rho_median": float("nan"),
+                "n_genes_scored": 0}
     pp = p[ok] - p[ok].mean(1, keepdims=True)
     tt = t[ok] - t[ok].mean(1, keepdims=True)
     rho = (pp * tt).sum(1) / np.sqrt((pp ** 2).sum(1) * (tt ** 2).sum(1))
     return {"rho_mean": float(rho.mean()), "rho_median": float(np.median(rho)),
-            "rho_p90": float(np.percentile(rho, 90)), "n_genes": int(ok.sum())}
+            "rho_p90": float(np.percentile(rho, 90)),
+            "n_genes_scored": int(ok.sum())}
 
 
 def pfcs(pred, truth, n_hvg=100):
@@ -391,7 +395,8 @@ def pdes(pred, truth, labels, min_cells=10):
         return {"pdes": float("nan"), "n_groups": len(groups)}
     a, b = sp[ok].ravel(), st[ok].ravel()
     return {"pdes": float(np.corrcoef(a, b)[0, 1]), "n_groups": len(groups),
-            "n_genes": int(ok.sum()), "variant": "welch-t (limma substitute)"}
+            "n_genes_scored": int(ok.sum()),
+            "variant": "welch-t (limma substitute)"}
 
 
 def densification(pred, truth, measured):
@@ -805,6 +810,13 @@ def _self_test():
     chk("label transfer accurate", lt["accuracy"] > 0.99, f"{lt['accuracy']:.3f}")
 
     # ---- imputation metrics
+    # genes > cells must still index genes: 5 high-variance genes in a 300x20 block
+    big = rng.normal(0, 0.01, size=(300, 20)).astype(np.float32)
+    big[[7, 42, 101, 200, 299]] += rng.normal(0, 5.0, size=(5, 20))  # scale, not shift
+    h = hvg_mask(big, n=5, min_cells=2)
+    chk("hvg_mask indexes genes when genes > cells",
+        sorted(h.tolist()) == [7, 42, 101, 200, 299], str(h.tolist()))
+
     truth = np.abs(rng.normal(size=(60, 200))).astype(np.float32)
     truth[truth < 0.3] = 0
     pred_exact = truth.copy()
