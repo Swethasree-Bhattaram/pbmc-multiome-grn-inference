@@ -377,6 +377,20 @@ def _multivi_fit(exp, args, tag, drop_rna_cells=()):
 
     scvi.settings.verbosity = 40
     scvi.settings.seed = args.seed
+
+    # The slurm script exports OMP_NUM_THREADS=1, which is right for the GRN phase
+    # (dask runs one thread per worker) but leaves a CPU-only MultiVI fit on ONE
+    # core.  Measured on a 10-core machine at 36,601 genes + 89,796 peaks: 7.14
+    # s/epoch single-threaded vs 3.17 s/epoch with 8 threads.  Set the intra-op
+    # pool explicitly, defaulting to all cores, overridable with MULTIVI_THREADS.
+    import torch
+    want = int(os.environ.get("MULTIVI_THREADS", "0") or 0)
+    n_threads = want or max(1, (os.cpu_count() or 1) - 1)
+    torch.set_num_threads(n_threads)
+    log(f"  [multivi] torch intra-op threads: {n_threads} "
+        f"(OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', 'unset')}, "
+        f"MULTIVI_THREADS={os.environ.get('MULTIVI_THREADS', 'unset')})")
+
     gene_axis, peak_axis = exp.gene_axis(), exp.peak_axis()
     mdata, rows, owner = _multivi_mdata(exp, gene_axis, peak_axis, drop_rna_cells)
     MULTIVI.setup_mudata(

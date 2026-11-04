@@ -37,6 +37,13 @@
 #      SEEDS="666"          sbatch ... run_stepwise.slurm     # one network, no stability
 #      GRN_WORKERS=8 sbatch --cpus-per-task=8 --mem=32G ... run_stepwise.slurm
 #      FORCE=1              sbatch ... run_stepwise.slurm     # redo existing networks
+#      MULTIVI_THREADS=16   sbatch ... run_stepwise.slurm     # torch threads for MultiVI
+#
+#  THREADS: OMP_NUM_THREADS is pinned to GRN_THREADS_PER_WORKER because GRNBoost2
+#  runs one thread per dask worker.  That is wrong for a CPU-only MultiVI fit, so
+#  stepwise_eval sets torch's intra-op pool itself, to all cores minus one unless
+#  MULTIVI_THREADS says otherwise (measured at 36,601 genes + 89,796 peaks:
+#  7.1 s/epoch single-threaded vs 3.2 s/epoch with 8 threads).
 #
 #  MEMORY: GRNBoost2 broadcasts the regulator matrix to every dask worker, so
 #  memory scales with WORKER COUNT, not with CPUs (8 -> 32G, 16 -> 64G, 20 -> 96G),
