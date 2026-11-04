@@ -193,11 +193,15 @@ submitting if anything is flagged.
 |---|---|---|
 | `MISSING run.py inputs: [...]` | `pca_50.txt`, or an RNA dataset's `counts.mtx`/`barcodes.txt`/`features.txt`, is not there | fix the path in `config.yml` |
 | `MultiVI needs ATAC peaks: <ds> has no counts.mtx/...` | MultiVI reads raw peaks; the ATAC dir currently has only the PCA | add the three files, or run `METHODS="scsaga"` |
+| `counts N x M = FEATURES x CELLS (expected M x N)` | the matrix is transposed relative to the repo convention (cells x features). Usual for an ATAC export from 10x/ArchR/Signac | nothing to do: the script transposes it in memory. `python fix_counts.py` repairs the file itself (it now covers ATAC datasets too) |
+| `counts N x M matches neither ...` | `barcodes.txt`/`features.txt` do not describe this matrix | check the three files belong together |
 | `barcodes shared with the anchor: {..., 0}` | no ATAC cell matches an RNA cell by barcode | then FOSCTTM and the held-out block are reported unavailable — everything else still runs |
 | `labels.txt present: {..., False}` | no cell-type labels | add `labels.txt` next to `pca_50.txt` (one label per PCA row, same order) or accept that the label metrics read `unavailable` |
 
 The four-file layout, per dataset, is exactly what `run.py` already expects —
-MultiVI simply also wants it for the ATAC side:
+MultiVI simply also wants it for the ATAC side. `counts.mtx` must be cells x features;
+a features x cells file is accepted and transposed in memory, but `python fix_counts.py`
+is the thing to run once on the data:
 
 ```
 data/3k_rna/    pca_50.txt  counts.mtx  barcodes.txt  features.txt  labels.txt(optional)

@@ -129,21 +129,53 @@ def wjson(path, obj):
 # --------------------------------------------------------------------------- #
 # data access -- always through run.py's Dataset, never re-derived
 # --------------------------------------------------------------------------- #
-def rna_raw_on_axis(ds, axis):
-    """csr cells x len(axis) RAW counts, reindexed from the dataset's own axis."""
+def counts_orientation(ds):
+    """-> 'ok' | 'transposed' | 'neither', plus the shapes, from the header only.
+
+    The repo convention is CELLS x FEATURES.  The 10x / ArchR / Signac ATAC exports
+    are usually FEATURES x CELLS, and nothing used to read ATAC counts (run.py
+    exempts ATAC from its alignment check, and fix_counts.py skipped ATAC), so a
+    transposed ATAC matrix was invisible until MultiVI.
+    """
+    rows, cols, _ = ds.mtx_shape()
+    n_cells, n_feat = ds.n_cells_pca(), len(ds.load_features())
+    if (rows, cols) == (n_cells, n_feat):
+        return "ok", (rows, cols), (n_cells, n_feat)
+    if (rows, cols) == (n_feat, n_cells):
+        return "transposed", (rows, cols), (n_cells, n_feat)
+    return "neither", (rows, cols), (n_cells, n_feat)
+
+
+def counts_on_axis(ds, axis):
+    """csr cells x len(axis) RAW counts, reindexed from the dataset's own axis.
+
+    A counts.mtx stored features x cells is transposed in memory with a loud line,
+    rather than failing a job that is already hours in.  `fix_counts.py` repairs the
+    file itself; this keeps a first run from dying on it.
+    """
     import scipy.io
 
-    genes = ds.load_features()
+    feats = ds.load_features()
+    state, (rows, cols), (n_cells, n_feat) = counts_orientation(ds)
+    if state == "neither":
+        raise SystemExit(
+            f"{ds.name}: counts.mtx is {rows} x {cols}, which is neither cells x "
+            f"features ({n_cells} x {n_feat}) nor features x cells ({n_feat} x "
+            f"{n_cells}).  barcodes.txt/features.txt do not describe this matrix.")
     X = scipy.io.mmread(ds.counts).tocsr().astype(np.float32)
-    if X.shape[1] != len(genes):
-        raise SystemExit(f"{ds.name}: counts has {X.shape[1]} columns but "
-                         f"{len(genes)} features")
-    if list(genes) == list(axis):
+    if state == "transposed":
+        log(f"  [counts] {ds.name}: counts.mtx is {rows} x {cols} = features x cells; "
+            f"transposing in memory.  Repair the file with: python fix_counts.py")
+        X = X.T.tocsr()
+    if X.shape != (n_cells, n_feat):
+        raise SystemExit(f"{ds.name}: after orientation fix counts is {X.shape}, "
+                         f"expected {(n_cells, n_feat)}")
+    if list(feats) == list(axis):
         return X
-    return base.reindex_counts_columns(X, genes, list(axis))
+    return base.reindex_counts_columns(X, feats, list(axis))
 
 
-def rna_lognorm_on_axis(ds, axis):
+def lognorm_on_axis(ds, axis):
     """run.py's load_expression() transform, on an arbitrary gene axis.
 
     Totals are taken on the dataset's OWN matrix (as run.py does) and the log is
@@ -151,7 +183,7 @@ def rna_lognorm_on_axis(ds, axis):
     would have produced for the genes it shares with the axis.
     """
     genes = ds.load_features()
-    X = rna_raw_on_axis(ds, genes)
+    X = counts_on_axis(ds, genes)
     tot = np.asarray(X.sum(axis=1)).ravel()
     tot[tot == 0] = 1
     Y = X.multiply((TARGET_SUM / tot)[:, None]).tocsr()
@@ -313,7 +345,7 @@ def _multivi_mdata(exp, gene_axis, peak_axis, drop_rna_cells=()):
     for name in exp.order:
         d = exp.ds[name]
         axis = gene_axis if d.modality == "rna" else peak_axis
-        X = rna_raw_on_axis(d, axis)
+        X = counts_on_axis(d, axis)
         keep = np.array([i for i in range(exp.sizes[name])
                          if (name, i) not in drop], dtype=int)
         if not len(keep):
@@ -483,7 +515,7 @@ def step_impute(exp, method, args, split):
     H, rows, info, _ = load_integ(exp, method)
     genes = exp.gene_axis()
 
-    rna_blocks = {n: rna_lognorm_on_axis(exp.ds[n], genes) for n in exp.rna}
+    rna_blocks = {n: lognorm_on_axis(exp.ds[n], genes) for n in exp.rna}
     ref_sparse = rna_blocks[exp.anchor].T.tocsr()             # genes x anchor cells
     ref_rows = rows[exp.anchor]
     q_rows = np.concatenate([rows[a] for a in exp.atac_queries])
@@ -1067,6 +1099,21 @@ def check(exp, datasets, methods, args):
     log("  -> " + ("held-out answer key available (FOSCTTM, MSE, pFCS, pDES, rho)"
                    if any(pm.values()) else
                    "no pairing: FOSCTTM and the held-out block will be 'unavailable'"))
+    for n in exp.names:
+        d = datasets[n]
+        if not (d.has_expression() and d.has_pca()):
+            continue
+        state, got, want = counts_orientation(d)
+        if state == "ok":
+            log(f"  {n}: counts {got[0]} x {got[1]} = cells x features OK")
+        elif state == "transposed":
+            log(f"  {n}: counts {got[0]} x {got[1]} = FEATURES x CELLS (expected "
+                f"{want[0]} x {want[1]}); stepwise_eval transposes it in memory, "
+                f"`python fix_counts.py` repairs the file")
+        else:
+            log(f"  {n}: counts {got[0]} x {got[1]} matches neither {want[0]} x "
+                f"{want[1]} nor transposed -- check barcodes/features")
+            ok = False
     labs = {n: load_labels(datasets[n]) is not None for n in exp.names}
     log(f"  labels.txt present: {labs}")
     if not any(labs.values()):

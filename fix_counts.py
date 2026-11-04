@@ -13,11 +13,15 @@ against its own barcodes.txt / features.txt:
     features x cells          -> rewritten transposed, atomically
     matches neither           -> refused, nothing written
 
-ATAC datasets are skipped: their expression is imputed, never read.
+ATAC datasets are included when they carry counts: MultiVI reads raw peaks, so an
+ATAC counts.mtx stored features x cells breaks it (a PCA-only ATAC dir is skipped).
 
     python fix_counts.py --dry-run        # report only, changes nothing
     python fix_counts.py                  # repair
     CONFIG=/path/to/config.yml python fix_counts.py
+
+Covers ATAC datasets as well as RNA ones: MultiVI reads raw peaks, so an ATAC
+counts.mtx stored features x cells breaks that arm (a PCA-only ATAC dir is skipped).
 
 Run this before a long pipeline run: run.py only discovers the problem after
 the integration step, whereas this reads file headers and finishes in seconds.
@@ -78,8 +82,6 @@ def main():
     print(f'config: {os.path.abspath(CONFIG)}\n')
     for name, spec in (cfg.get('datasets') or {}).items():
         spec = spec or {}
-        if (spec.get('modality') or 'rna').lower() != 'rna':
-            continue                       # ATAC is imputed, never read
         c, b, f = paths(spec, root)
         if not all(p and os.path.exists(p) for p in (c, b, f)):
             print(f'  {name:12s} SKIP  missing counts/barcodes/features')
