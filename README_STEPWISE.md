@@ -107,55 +107,207 @@ paired cells are frozen deterministically (`--holdout-frac`, `--split-seed`):
 
 Without shared barcodes those metrics are reported unavailable, not approximated.
 
-## Run on PACE Phoenix
+## Run on PACE Phoenix — step by step
+
+Eight steps, in order. Steps 1–3 run on a **login node**; steps 4–6 are the job.
+
+If you have done it before, this is the whole thing:
 
 ```bash
-# once, on a LOGIN node (compute nodes have no network): home is quota'd at 10 GB,
-# so put the three things that default to home on scratch first
+export TMPDIR=/storage/scratch1/<n>/<user>/tmp PIP_CACHE_DIR=$TMPDIR/pip CONDA_PKGS_DIRS=$TMPDIR/pkgs
+cd /storage/scratch1/<n>/<user>/pbmc-multiome-grn-inference
+bash setup_stepwise.sh                          # once
+conda activate scgrn && python scripts/stepwise_eval.py --check
+SEEDS="666" sbatch --account=<acct> --qos=inferno run_stepwise.slurm
+```
+
+Then `results/stepwise/<experiment>/report.md`.
+
+### 1. Put the repo on scratch, not in home
+
+Home is quota'd at 10 GB and torch + scvi-tools alone will not fit. Everything —
+repo, env, TMPDIR, pip cache — goes on scratch.
+
+```bash
+ssh <user>@phoenix.pace.gatech.edu
+
+export TMPDIR=/storage/scratch1/<n>/<user>/tmp      # <n> = your scratch number
+mkdir -p "$TMPDIR"
+
+cd /storage/scratch1/<n>/<user>
+git clone https://github.com/Swethasree-Bhattaram/pbmc-multiome-grn-inference.git
+cd pbmc-multiome-grn-inference
+git log --oneline -1          # should read: Step-wise experiment: MultiVI vs scSAGA ...
+```
+
+### 2. Build the environment (login node, once, ~10 min)
+
+```bash
 export TMPDIR=/storage/scratch1/<n>/<user>/tmp
 export PIP_CACHE_DIR=$TMPDIR/pip
-export CONDA_PKGS_DIRS=$TMPDIR/pkgs
+export CONDA_PKGS_DIRS=$TMPDIR/pkgs      # without these three you get Errno 122
 
-cd /storage/.../pbmc-multiome-grn-inference
-bash setup_stepwise.sh                      # setup.sh env + muon + scvi-tools
-python scripts/stepwise_eval.py --check     # paths, pairing, labels, backend
+bash setup_stepwise.sh
 ```
 
+It runs the repo's own `setup.sh` (numpy/scipy/sklearn/pandas/scanpy/anndata,
+arboreto+dask, scSAGA+torch) and then adds `muon` + `scvi-tools`. The last lines
+must read:
+
+```
+  MULTIVI      importable  (...)
+  scSAGA       importable
+  arboreto     importable (+ modern-dask patch applied)
+  all imports OK
+```
+
+`Errno 122` during the install means one of the three exports above did not take.
+`muon`/`scvi-tools` failing only breaks the MultiVI arm, not scSAGA.
+
+### 3. Check the inputs (login node, seconds, no compute)
+
+The env is a conda env named `scgrn` (or `ENV_NAME` if you changed it). Activate it
+before running anything by hand — the slurm script activates it itself.
+
 ```bash
-# the run (CPU node; 16 workers, 64 GB)
+conda activate scgrn          # if "conda: command not found": module load anaconda3
+python scripts/stepwise_eval.py --check
+```
+
+One block per experiment. It must print, for the experiment you care about:
+
+```
+experiment paired: rna10k + atac10k  anchor=rna10k  queries=['atac10k']
+  barcodes shared with the anchor: {'atac10k': 5000}     <- non-zero = answer key works
+  -> held-out answer key available (FOSCTTM, MSE, pFCS, pDES, rho)
+  labels.txt present: {'rna10k': True, 'atac10k': True}
+  MultiVI backend: scvi-tools 1.4.2
+  GRN regulators: .../data/tf_only.txt OK
+  GRN targets: .../data/trrust_tf.txt OK
+```
+
+Exit code is 0 only when every check passes. Read the failure table below before
+submitting if anything is flagged.
+
+| `--check` says | what it means | what to do |
+|---|---|---|
+| `MISSING run.py inputs: [...]` | `pca_50.txt`, or an RNA dataset's `counts.mtx`/`barcodes.txt`/`features.txt`, is not there | fix the path in `config.yml` |
+| `MultiVI needs ATAC peaks: <ds> has no counts.mtx/...` | MultiVI reads raw peaks; the ATAC dir currently has only the PCA | add the three files, or run `METHODS="scsaga"` |
+| `barcodes shared with the anchor: {..., 0}` | no ATAC cell matches an RNA cell by barcode | then FOSCTTM and the held-out block are reported unavailable — everything else still runs |
+| `labels.txt present: {..., False}` | no cell-type labels | add `labels.txt` next to `pca_50.txt` (one label per PCA row, same order) or accept that the label metrics read `unavailable` |
+
+The four-file layout, per dataset, is exactly what `run.py` already expects —
+MultiVI simply also wants it for the ATAC side:
+
+```
+data/3k_rna/    pca_50.txt  counts.mtx  barcodes.txt  features.txt  labels.txt(optional)
+data/3k_atac/   pca_50.txt  counts.mtx  barcodes.txt  features.txt   <- last three new, for MultiVI
+```
+
+`labels.txt` is one line per PCA row. If you already have an annotation in an
+AnnData or a CSV, write it out in that row order:
+
+```bash
+python - <<'PY'
+import anndata as ad
+a = ad.read_h5ad("your.h5ad")
+open("data/3k_rna/labels.txt", "w").write("\n".join(a.obs["cell_type"].astype(str)) + "\n")
+PY
+```
+
+### 4. Submit
+
+```bash
 sbatch --account=<acct> --qos=inferno run_stepwise.slurm
-
-# useful variants
-SEEDS="666"            sbatch ... run_stepwise.slurm    # one network per method first
-EXPERIMENTS="paired"   sbatch ... run_stepwise.slurm
-METHODS="scsaga"       sbatch ... run_stepwise.slurm
-STEPS="metrics"        sbatch ... run_stepwise.slurm    # rescore without recomputing
-GRN_WORKERS=8 sbatch --cpus-per-task=8 --mem=32G ... run_stepwise.slurm
+# e.g.
+sbatch --account=gts-saluru8-coda20 --qos=inferno run_stepwise.slurm
 ```
 
-Interactively, the same thing without SLURM:
+`--account` and `--qos` are deliberately not baked in. Defaults: 1 node,
+16 CPUs, 64 GB, 24 h, both methods, all experiments in `config.yml`, three seeds.
+
+**First submission: one seed.** The 3-seed loop runs once per method and is what
+fills the wall clock. Prove the input is right with
 
 ```bash
-python scripts/stepwise_eval.py -e paired --methods multivi,scsaga --workers 8
+SEEDS="666" sbatch --account=<acct> --qos=inferno run_stepwise.slurm
 ```
 
-Steps can be re-run independently: `--only integrate`, `--only impute`,
-`--only grn`, `--only metrics`. Each step reuses what the previous one wrote,
-including the saved MultiVI model, so iterating on the network never refits the
-model.
+then add the other two seeds without recomputing anything:
 
-### Cost (estimates, not measurements on your data)
+```bash
+STEPS="grn" SEEDS="667,668" sbatch --account=<acct> --qos=inferno run_stepwise.slurm
+STEPS="metrics" sbatch --account=<acct> --qos=inferno run_stepwise.slurm
+```
 
-- scSAGA: minutes. MultiVI: 2 fits (full + held-out) of a few hundred epochs —
-  tens of minutes on CPU for ~10k cells.
-- GRNBoost2 dominates: runtime scales with the number of **columns**, not targets,
-  and it runs once per seed and twice (once per method). With 16 workers expect a
-  few hours per seed at the repo's scale; the 3-seed loop is what fills a 24 h job.
-  Start with `SEEDS="666"`, then add the other seeds with `STEPS=grn SEEDS="667,668"`.
+Other overrides, all on the `sbatch` line:
+
+```bash
+EXPERIMENTS="paired"   ...   # one experiment (default: all in config.yml)
+METHODS="scsaga"       ...   # one workflow (default: multivi,scsaga)
+METHODS="multivi"      ...   # the other
+EPOCHS=100             ...   # MultiVI max epochs (default 200, early stopping on)
+FORCE=1                ...   # overwrite existing network.tsv
+GRN_WORKERS=8 sbatch --cpus-per-task=8 --mem=32G ...   # small-memory variant
+```
+
+### 5. Watch it
+
+```bash
+squeue -u $USER
+tail -f slurm-stepwise-<jobid>.out
+```
+
+The log goes, per experiment and per method, through these lines — if the last
+one you see is much older than the elapsed time, look at the next line down for a
+`[!]`:
+
+```
+EXPERIMENT paired
+--- multivi
+  [pipeline] MultiVI fit: 5422 cells (2711 anchor + 2711 ATAC barcodes), ... 
+  [pipeline] affine scale alignment: median |delta| ...
+  [pipeline] imputed (36601, 2711) genes x ATAC cells
+  [pipeline] all-cells (5422, 36601) (2711 real + 2711 imputed)
+  [heldout] 542 frozen cells imputed from 2169 reference cells; their RNA rows are removed from the model's training data too
+  [grn] GRNBoost2 seed 666 -> .../pipeline/grn
+  GRNBoost2: <N> edges in <t> min
+  metrics -> .../metrics.json
+--- scsaga
+  ...
+  report -> .../report.md
+```
+
+A failure inside one method is caught and printed as
+`[!] multivi FAILED: <reason>`; the other method still runs and the report still
+gets written. A missing `network.tsv` at the end is the one thing that fails the
+job (`set -e` plus the final `find`).
+
+### 6. Read the result
+
+```bash
+less results/stepwise/<experiment>/report.md     # the table you actually read
+less results/stepwise/<experiment>/metrics.json  # every number, plus why anything is unavailable
+```
+
+`report.md` is one table: metric by step, one column per method, and a column
+saying what a good value looks like. `n/a` always has a reason in `metrics.json`.
+The slurm job also prints the first 60 lines of every report when it finishes.
+
+### 7. Cost, so you can size the job
+
+- scSAGA: minutes. MultiVI: two fits (full + frozen) — tens of minutes on CPU for
+  ~10k cells at 200 epochs, dominated by the ATAC peak count.
+- GRNBoost2 dominates, and it runs once per seed and twice (once per method).
+  Runtime scales with **columns**, not targets. With 16 workers expect a few
+  hours per seed at the repo's scale, so 3 seeds × 2 methods is what fills 24 h.
 - Memory: GRN workers × ~0.35 GB + ~2 GB (8 → 32G, 16 → 64G, 20 → 96G), plus the
-  count matrices MultiVI holds.
+  count matrices MultiVI holds. If the job is killed for memory, drop
+  `--cpus-per-task` and `--mem` together, in that ratio.
 
-### Smoke test (five minutes, no real data needed)
+### 8. Smoke test first, if you want a five-minute rehearsal
+
+On any machine, with no real data:
 
 ```bash
 python scripts/stepwise_metrics.py --self-test     # metrics against known answers
@@ -166,10 +318,10 @@ python scripts/stepwise_eval.py \
 ```
 
 This builds two datasets of the same 320 cells from one shared latent state, with
-labels, a planted TF→target network and a ground-truth edge list, and runs the
-whole experiment on them. It proves the plumbing. **Its numbers are not a
-benchmark of either method** — 320 cells and 240 genes are far below the regime
-the methods were designed for.
+labels, a planted TF→target network and a ground-truth edge list. It proves the
+plumbing end to end in about a minute. **Its numbers are not a benchmark of either
+method** — 320 cells and 240 genes are far below the regime the methods were
+designed for.
 
 ## Three things to know before reading the numbers
 
