@@ -39,22 +39,45 @@ import yaml
 CONFIG = os.environ.get('CONFIG', 'config.yml')
 
 
+COUNTS_NAMES = ('counts.mtx', 'counts.txt', 'counts.tsv')
+
+
+def _in_dir(d, names):
+    """First of `names` that exists in d, else the first name (for the message)."""
+    for n in names:
+        if os.path.exists(os.path.join(d, n)):
+            return os.path.join(d, n)
+    return os.path.join(d, names[0])
+
+
+def is_matrixmarket(path):
+    try:
+        with open(path, 'rb') as fh:
+            return fh.read(64).lstrip().startswith(b'%%MatrixMarket')
+    except OSError:
+        return False
+
+
 def paths(spec, root):
-    """-> (counts, barcodes, features) absolute paths for one dataset spec."""
-    if spec.get('dir'):
-        d = spec['dir']
-        if not os.path.isabs(d):
-            d = os.path.join(root, d)
-        return (os.path.join(d, 'counts.mtx'),
-                os.path.join(d, 'barcodes.txt'),
-                os.path.join(d, 'features.txt'))
+    """-> (counts, barcodes, features) absolute paths for one dataset spec.
 
-    def p(key):
+    Mirrors run.py's Dataset: explicit keys win, `dir` is a shorthand.  A matrix
+    named counts.txt / counts.tsv is found too -- scipy.io.mmread does not care
+    about the suffix, only about the content.
+    """
+    def p(key, default=None):
         v = spec.get(key)
-        if not v:
-            return None
-        return v if os.path.isabs(v) else os.path.join(root, v)
+        if v:
+            return v if os.path.isabs(v) else os.path.join(root, v)
+        return default
 
+    d = p('dir')
+    if d and os.path.isdir(d):
+        return (_in_dir(d, COUNTS_NAMES) if not spec.get('counts') else p('counts'),
+                p('barcodes', _in_dir(d, ('barcodes.txt',))) if not spec.get('barcodes')
+                else p('barcodes'),
+                p('features', _in_dir(d, ('features.txt',))) if not spec.get('features')
+                else p('features'))
     return p('counts'), p('barcodes'), p('features')
 
 
@@ -79,13 +102,25 @@ def main():
     cfg = yaml.safe_load(open(CONFIG))
     todo = {}
 
+    rename = {}
     print(f'config: {os.path.abspath(CONFIG)}\n')
     for name, spec in (cfg.get('datasets') or {}).items():
         spec = spec or {}
         c, b, f = paths(spec, root)
         if not all(p and os.path.exists(p) for p in (c, b, f)):
-            print(f'  {name:12s} SKIP  missing counts/barcodes/features')
+            print(f'  {name:12s} SKIP  missing counts/barcodes/features '
+                  f'(looked for {", ".join(COUNTS_NAMES)} in the dataset dir)')
             continue
+        if os.path.basename(c) != 'counts.mtx':
+            if is_matrixmarket(c):
+                print(f'  {name:12s} NAME  {os.path.basename(c)} is MatrixMarket; '
+                      f'will become counts.mtx')
+                rename[name] = c
+            else:
+                print(f'  {name:12s} SKIP  {os.path.basename(c)} is not MatrixMarket '
+                      f'(no %%MatrixMarket header) -- convert it first, see '
+                      f'README_STEPWISE.md')
+                continue
         rows, cols = header(c)
         n_bc, n_ft = nlines(b), nlines(f)
         if (rows, cols) == (n_bc, n_ft):
@@ -98,10 +133,21 @@ def main():
             print(f'  {name:12s} SKIP  {rows} x {cols} matches neither '
                   f'{n_bc} x {n_ft} nor {n_ft} x {n_bc} -- NOT touching it')
 
-    print(f'\n{len(todo)} dataset(s) to transpose'
-          f'{"" if not dry else " (dry run, nothing written)"}')
-    if dry or not todo:
+    print(f'\n{len(todo)} dataset(s) to transpose, {len(rename)} to rename'
+          f'{" (dry run, nothing written)" if dry else ""}')
+    if dry or not (todo or rename):
         return 0
+
+    # rename first: a later transpose must write to the new path
+    for name, src in rename.items():
+        dst = os.path.join(os.path.dirname(src), 'counts.mtx')
+        if os.path.exists(dst):
+            print(f'  {name:12s} SKIP  {dst} already exists, not overwriting')
+            continue
+        os.replace(src, dst)
+        print(f'  {name:12s} renamed {os.path.basename(src)} -> counts.mtx')
+        if name in todo:
+            todo[name] = (dst,) + todo[name][1:]
 
     for name, (c, n_bc, n_ft) in todo.items():
         # scipy's mmwrite appends '.mtx' to any path not already ending in it,

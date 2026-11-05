@@ -35,6 +35,21 @@ untouched.
 The metrics are the ones in the deck (slides 4, 6, 8, 11). Each one is computed
 per method, on that method's own artifacts.
 
+In one table, per step, what it produces and what grades it:
+
+| step | what it produces | validated by (deck slide) |
+|---|---|---|
+| 1 integration | `H`: cells × 30 joint embedding (scSAGA), or the joint latent `z` plus per-modality `z_expr`/`z_acc` (MultiVI) | FOSCTTM, label conservation, batch correction, label transfer (4 / 11) |
+| 2 imputation | a gene × ATAC-cell matrix, then the all-cells matrix `X` + `mask` (measured / guessed) | MSE, pFCS, pDES, gene-wise rho, densification, downstream (6 / 11) |
+| 3 GRN | `network.tsv`: TF → target → importance, one per seed | AUPRC, early precision, stability, topology, perturbation, regulon activity (8), plus `run.py`'s recovered / precision@K / recall@K |
+
+They run in that order because each one protects the next: step 1 answers *is `H` a
+space where "nearest neighbour" means the same cell* (if not, step 2's average is
+meaningless), step 2 answers *does the matrix the booster reads still carry the real
+gene–gene correlation structure, on one scale* (if not, the network is confidently
+wrong), step 3 answers *is the network better than random, and better than its own
+seed noise* (if not, there is no result to report, whatever the AUPRC says).
+
 **Step 1 — integration** (slides 4 and 11)
 
 | metric | question |
