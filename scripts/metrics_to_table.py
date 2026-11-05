@@ -265,8 +265,16 @@ def main():
 
     try:
         import pandas as pd
-    except ImportError:
-        raise SystemExit("--xlsx needs pandas: pip install pandas openpyxl")
+        import openpyxl                                    # noqa: F401
+    except ImportError as exc:
+        print(f"--xlsx needs {exc.name or 'pandas/openpyxl'} (pip install pandas "
+              f"openpyxl); writing the three CSVs instead")
+        write_csv(base, runs, cols)
+        write_csv(os.path.join(os.path.dirname(base), "stepwise_per_seed.csv"), seeds,
+                  ["experiment", "method", "seed", "network", "edges", "auprc_trrust"])
+        write_csv(os.path.join(os.path.dirname(base), "stepwise_definitions.csv"), defs,
+                  ["column", "what it asks", "better", "ground truth", "deck slide"])
+        return 0
     path = base.replace(".csv", ".xlsx")
     with pd.ExcelWriter(path, engine="openpyxl") as xl:
         pd.DataFrame(runs)[cols].to_excel(xl, sheet_name="runs", index=False)
