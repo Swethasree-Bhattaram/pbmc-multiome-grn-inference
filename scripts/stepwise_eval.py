@@ -1262,13 +1262,16 @@ def main():
         for method in methods:
             log(f"\n--- {method}")
             t0 = time.time()
+            timings = {}
             try:
-                if "integrate" in steps:
-                    step_integrate(exp, method, args)
-                if "impute" in steps:
-                    step_impute(exp, method, args, split)
-                if "grn" in steps:
-                    step_grn(exp, cfg, method, args)
+                for name, fn in (("integrate", lambda: step_integrate(exp, method, args)),
+                                 ("impute", lambda: step_impute(exp, method, args, split)),
+                                 ("grn", lambda: step_grn(exp, cfg, method, args))):
+                    if name not in steps:
+                        continue
+                    ts = time.time()
+                    fn()
+                    timings[name] = round(time.time() - ts, 1)
             except (Exception, SystemExit) as exc:                    # noqa: BLE001
                 log(f"  [!] {method} FAILED: {exc}")
                 payload[method] = {"error": str(exc)}
@@ -1281,6 +1284,9 @@ def main():
                 pay = {"meta": {"method": method, "seeds": args.seeds,
                                 "grn_cap": args.grn_cap,
                                 "row_space": info.get("row_space"),
+                                "seconds": timings,
+                                "workers": args.workers,
+                                "n_cells": {k: int(v) for k, v in exp.sizes.items()},
                                 "labels": "labels.txt" if (labels_row != "").any()
                                           else "none"}}
                 for group, fn in (("integration",

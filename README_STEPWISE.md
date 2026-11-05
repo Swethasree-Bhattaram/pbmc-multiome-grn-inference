@@ -307,7 +307,15 @@ job (`set -e` plus the final `find`).
 ```bash
 less results/stepwise/<experiment>/report.md     # the table you actually read
 less results/stepwise/<experiment>/metrics.json  # every number, plus why anything is unavailable
+
+python scripts/metrics_to_table.py --xlsx        # all runs, one row per (experiment, method)
 ```
+
+The exporter writes three sheets: `runs` (one row per experiment × method, identity →
+step 1 → step 2 → step 3 → gates → cost), `per_seed` (one row per seed, for the
+stability claim) and `definitions` (what each column asks, which direction is better,
+which ground truth it needs, which deck slide it comes from). Long format on purpose:
+a third method adds rows, not columns.
 
 `report.md` is one table: metric by step, one column per method, and a column
 saying what a good value looks like. `n/a` always has a reason in `metrics.json`.
