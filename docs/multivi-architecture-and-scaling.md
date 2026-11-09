@@ -234,8 +234,14 @@ streamable. The scVI family has been trained at 10^7+ cells in atlas work.
 
 Two honest caveats specific to MultiVI:
 
-1. **Published MultiVI benchmarks are at ~10^5 cells** (PBMC 10k, mouse brain). The 10^6 claim is an
-   extrapolation from the architecture and the family's record, not a MultiVI result I can point at.
+1. **No published MultiVI result above 10^5 cells.** The paper (Ashuach et al., *Nat. Methods* 2023) tops
+   out at **89,655 cells** — mixed-source PBMC: 47,148 ATAC-only (Satpathy), 30,495 RNA-only (Ding),
+   12,012 paired (10x). The remaining datasets are 10x PBMC 10k, DOGMA-seq and TEA-seq. The word
+   "million" does not appear anywhere in the article, and it explicitly lists "datasets with a small
+   number of cells" as a limitation (the opposite wall). The ">1 million cells" claim comes from the
+   **scvi-tools model page** (`docs.scvi-tools.org`), which is documentation, not a published benchmark —
+   the same page also says MultiVI "effectively requires a GPU for fast inference", which matches the
+   CPU table in §4. The 10^6 figure in this document is an extrapolation from the architecture.
 2. **Co-assayed cells are a hard requirement.** The alignment term only acts where a cell has both
    modalities. A 1M-cell atlas that is 99% single-modality gives the two encoders almost no signal to
    agree on, and the model degenerates toward two independent VAEs — the exact failure measured above
