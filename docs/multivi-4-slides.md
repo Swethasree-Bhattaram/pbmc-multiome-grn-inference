@@ -82,6 +82,63 @@ If nine boxes is too many for one slide, collapse to six: `RNA counts | ATAC cou
 3+4) → `Posterior fusion` → `Sample z` → `Decoders` (boxes 7+8) → `Loss`. The Jeffreys callout must
 survive the collapse; it is the one thing a reader cannot guess.
 
+### Slide 1 notation
+
+If the symbols go on the slide, they go in this table, not scattered in the boxes.
+
+**Sizes**
+
+| symbol | value here | meaning |
+|---|---|---|
+| `N` | 11,000 | cells in the dataset — the number of rows of every input and of `z` |
+| `B` | 128 | minibatch size; training sees `B` rows at a time, the export sees all `N` |
+| `G` | 36,601 | genes — the RNA feature axis |
+| `P` | 89,796 | ATAC regions (peaks) — the accessibility feature axis |
+| `h` | 128 | hidden width of every intermediate layer |
+| `L` | 30 | latent width: how many numbers describe one cell |
+| `E` | 200 | training epochs (a loop count, not a dimension) |
+
+**Data**
+
+| symbol | shape | meaning |
+|---|---|---|
+| `X_r` | `N x G` sparse | raw RNA counts: UMIs per gene per cell |
+| `X_a` | `N x P` sparse | raw ATAC counts: fragments per peak per cell, binarised inside the loss |
+| `x_r`, `x_a` | `B x G`, `B x P` | one minibatch of the above |
+| `m_r`, `m_a` | `N` (one per cell) | modality mask = `rowsum(X) > 0`. Derived from the data, never supplied: a cell with no counts in a modality contributes no reconstruction error there. This is the whole unpaired-data mechanism. |
+| `batch label` | `N` | which experiment/technology a cell came from. Absent in this run (`n_batch = 0`), which is why mixing technologies without it puts a technology axis into `z`. |
+
+**Model**
+
+| symbol | shape | meaning |
+|---|---|---|
+| `mu_r`, `sigma_r` | `B x L` each | the RNA encoder's belief about the cell: mean and SD of a Gaussian over `z`. Built from RNA counts only. |
+| `mu_a`, `sigma_a` | `B x L` each | the ATAC encoder's belief, from peaks only |
+| `w` | scalar, 2, or `N x 2` | how much each modality is trusted when fusing. `equal` (default), `universal`, or per-cell |
+| `mu`, `sigma` | `B x L` each | the fused belief after precision weighting: `mu = sum(w*m*mu/sigma^2) / sum(w*m/sigma^2)` |
+| `z` | `B x L` | the latent: one 30-number description per cell. **This is the integration output.** |
+| `eps` | `B x L` | standard-normal noise, only there to make `z` a sample rather than a point |
+| `ell_r`, `ell_a` | `B x 1` | library size (total counts per cell), encoded so the decoder can separate depth from biology |
+
+**Decoded quantities**
+
+| symbol | shape | meaning |
+|---|---|---|
+| `px_scale` | `B x G` | decoded normalised mean expression. **This is the imputed matrix** (`n_atac x G`) that feeds GRNBoost2. |
+| `theta` | `G` | per-gene dispersion: how over-dispersed that gene's counts are |
+| `pi` | `B x G` | per-entry dropout logit; allocated even under an NB likelihood, so it is 1/5 of the RNA parameter cost |
+| `p` | `B x P` | per-peak probability of being accessible, `0..1` |
+| `region_factors` | `P` | per-peak scaling, absorbing how accessible a peak is overall |
+| `beta` | scalar, 1.0 | weight on the KL term |
+| Jeffreys | scalar, weight 1.0 | the paired-cell penalty. There is no separate `lambda` in scvi-tools 1.4.2 — it is added to the KL directly. |
+
+Two conventions worth stating out loud on the slide, because they are what usually confuses an audience:
+
+- `N` vs `B` is the same thing at two granularities. Every quantity in boxes 3-8 is per-minibatch (`B`);
+  the exported matrices and every metric are per-dataset (`N`).
+- `sigma` is a **standard deviation**, not a variance, everywhere in the table and in the fusion formula.
+  The code stores variances (`qz*variance`), so the square root is taken before fusion.
+
 ---
 
 ## Slide 2 — Does it scale to 10^6 cells?
