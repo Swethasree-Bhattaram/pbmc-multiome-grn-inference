@@ -56,12 +56,29 @@ Measured cost of this split (repo widths): RNA encoders 9.41 M params, ATAC enco
 
 ### Step 2 — fuse the two posteriors into one joint `q(z)`
 
-```
-mu_r, var_r, mu_a, var_a, m_r, m_a, w  ->  precision-weighted product of experts
+This is a **weighted average**, not a product of experts, and not precision weighting. Verified in
+`scvi/module/_multivae.py` (`mix_modalities`, called from `inference`) and consistent with the paper,
+which writes `Z_c = w_A Z_c^A + w_R Z_c^R` with `sum_m w_m = 1`.
 
-mu   = sum_m  w_m * m_m * mu_m / var_m   /   sum_m  w_m * m_m / var_m       B x L
-var  = 1 / sum_m  w_m * m_m / var_m                                          B x L
 ```
+mu_r, var_r, mu_a, var_a, m_r, m_a, w
+      |
+      +--> weights = masked_softmax(w, m)     # zero the absent modality, renormalise to sum 1
+      |
+mu   = sum_m  weights_m * mu_m                                            B x L
+var  = sum_m  sqrt(weights_m) * var_m                                     B x L
+```
+
+The variance line really is `sqrt(weights)` then `sum`, not `sum(weights * var)` and not
+`sqrt(sum(weights * var))`; it is a heuristic pool rather than a Gaussian product, and it is exact only
+when a cell has one modality (there the single weight is 1 and `var = var_m`). Two consequences worth
+knowing:
+
+- **`w` is a mixture weight, not a precision.** Nothing here divides by a variance, so there is no
+  `sigma -> 0` blow-up and no per-cell normaliser to stabilise. The fusion is cheap and stable.
+- **Cost is elementwise on `B x L`** — about ten kernels over 128 x 30 floats. Measured against the
+  encoder's `B x P x h` GEMM (128 x 250,000 x 128), the fusion is ~5 orders of magnitude cheaper. It is
+  the conceptual core of the model and the place the two modalities meet, but it is not a compute cost.
 
 `w` is one of:
 
@@ -71,8 +88,11 @@ var  = 1 / sum_m  w_m * m_m / var_m                                          B x
 | `universal` | `2` | 2 |
 | `cell` | `N x 2` | 8 MB at 1M cells (fp32) |
 
-A cell with one modality keeps that encoder's belief, because the missing modality contributes
-`m = 0` to both the numerator and the denominator.
+A cell with one modality keeps that encoder's belief, because `masked_softmax` gives the absent modality
+weight 0 and renormalises the present one to 1.
+
+The **training-time** counterpart of this step is the Jeffreys penalty in the loss, and that one is *not*
+cheap: it forms a `B x B x L` object per modality pair (see §6). That is the term that caps batch size.
 
 ### Step 3 — reparameterised sample
 
