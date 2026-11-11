@@ -159,6 +159,37 @@ Two conventions worth stating out loud on the slide, because they are what usual
 - `n_hidden` defaults to `sqrt(n_regions)` — leave it unset at 250k peaks and the model is 3.9x bigger.
 - **No published MultiVI result exceeds 89,655 cells.** The ">1 M" claim is the scvi-tools doc page.
 
+### Slide 2 — the red box
+
+Circle **box 2, ATAC counts**, and if you can mark two things, add the arrow from box 2 into box 4.
+Not the encoders, not the loss.
+
+Why that box, in three numbers (all at 1M cells, 250k peaks, h=128):
+
+| argument | number |
+|---|---|
+| it is upstream of 80% of the model | `3hP = 96.0 M` of `120.3 M` parameters flow from the peak axis; `5hG = 23.4 M` from genes |
+| cost per epoch is linear in cells x peaks | `6 x 120.3 M x 1M = 7.2e14` FLOP per epoch |
+| it is the only object that cannot be dense | `1M x 250k x 4 B = 1 TB` dense; 20 GB at 1% non-zero, 60 GB at 3% |
+
+Same cell count, only the peak axis changes, which is what makes the argument clean:
+
+| | 1M cells, 89,796 peaks | 1M cells, 250k peaks |
+|---|---|---|
+| parameters | 58.4 M | 120.3 M |
+| s/epoch, 8 CPU threads | 1,585 (26 min) | 3,594 (60 min) |
+| ATAC matrix, sparse 1% | 7 GB | 20 GB |
+
+Thirty-second script: *"This box is the peak matrix. It is 2.5x wider than the gene axis and it is the only
+input that cannot be held dense at a million cells — a trillion floats if you try. It also generates 80%
+of the model's weights, so it sets both the memory and the per-epoch cost. Everything downstream is
+linear in it, which means the lever is here: halve the peaks and you halve the model."*
+
+If someone says the encoder is the bottleneck, they are not wrong about the compute — box 4 alone is 64.0 M
+of the 120.3 M parameters, because it holds two full `P x h` matrices (the posterior encoder and the
+library-size encoder). But that is box 2's axis expressed as weights, and you cannot shrink box 4 without
+shrinking box 2. Circle the cause, not the symptom.
+
 ---
 
 ## Slide 3 — MultiVI vs scSAGA
