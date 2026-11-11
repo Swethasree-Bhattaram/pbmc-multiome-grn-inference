@@ -140,7 +140,72 @@ Two conventions worth stating out loud on the slide, because they are what usual
 - `sigma` is a **standard deviation**, not a variance, everywhere in the table and in the fusion formula.
   The code stores variances (`qz*variance`), so the square root is taken before fusion.
 
-### Where the imputed matrix comes from (the handoff to Arboreto)
+### MultiVI only: imputation is the decoder, not a step
+
+The nine model boxes plus three downstream ones. Boxes 1-9 are the model from Slide 1; 10-12 are what the
+existing pipeline adds around it. Nothing in 10-12 computes anything new.
+
+```
+                RNA                                    ATAC
+         ┌────────────────┐                    ┌────────────────┐
+         │ 1 RNA counts   │  N x G             │ 2 ATAC counts  │  N x P
+         └───────┬────────┘                    └───────┬────────┘
+                 │ x_r                                 │ x_a
+         ┌───────▼────────┐                    ┌───────▼────────┐
+         │ 3 RNA encoder  │                    │ 4 ATAC encoder │
+         └───────┬────────┘                    └───────┬────────┘
+                 │ mu_r, sigma_r                       │ mu_a, sigma_a
+                 └──────────────┬──────────────────────┘
+                        ┌───────▼────────┐
+                        │ 5 fusion       │  masked weighted mean
+                        └───────┬────────┘
+                        ┌───────▼────────┐
+                        │ 6 z            │  N x L   (integration output)
+                        └───┬────────┬───┘
+                    ┌───────▼──┐  ┌──▼──────────┐
+                    │ 7 RNA    │  │ 8 ATAC      │
+                    │  decoder │  │  decoder    │
+                    └───┬──────┘  └─────────────┘
+                        │ px_scale  B x G
+        ┌───────────────▼────────────────────┐
+        │ 10 imputed matrix                  │   G x n_atac
+        │   log1p(1e4 * px_scale) on ATAC rows│   = 36,601 x 11,000
+        └───────────────┬────────────────────┘
+        ┌───────────────▼────────────────────┐
+        │ 11 stack  [ measured RNA ; imputed ]│   C x G = 22,000 x 36,601
+        │    mask.npy : which rows are real   │
+        └───────────────┬────────────────────┘
+        ┌───────────────▼────────────────────┐
+        │ 12 GRNBoost2 -> network.tsv        │
+        │    regulators: data/tf_only.txt     │
+        └────────────────────────────────────┘
+
+        (box 9, the loss, sits beside 7 and 8: recon RNA + recon ATAC + KL + Jeffreys)
+```
+
+The point to make on the slide, in one sentence: **the ATAC row walks in at box 2 and walks out at box 7 as
+expression** — the same decoder that reconstructs RNA for a paired cell imputes it for an ATAC-only cell,
+because both are just `p(expression | z)`. There is no reference lookup, no k nearest neighbours, no
+carrying of values across datasets. Imputation is a forward pass through a model that was trained to map
+`z` to expression.
+
+Why that is legitimate rather than circular: the decoder only ever saw real RNA during training, and `z` for
+an ATAC-only cell is inferred from peaks alone, through an ATAC encoder that the Jeffreys term has pulled
+into agreement with the RNA encoder. So box 10 is the model's conditional mean of expression given
+accessibility — a prediction, not an interpolation.
+
+Two honest caveats to say out loud, since the box diagram makes it look free:
+
+- **It is still one explicit call.** `model.get_normalized_expression(mdata, indices=atac_rows)` decodes
+  box 10; and the held-out answer-key arm refits the model with the hidden cells excluded before decoding.
+  No imputation *algorithm*, but there is a decode pass and, for the answer key, a second fit.
+- **The decoded mean is a mean.** Box 10 is a conditional mean, which is why it is smooth: 22.5x denser than
+  a measured row and 0.336 sd off on gene means. The generative model's mean is not the data's distribution,
+  and that is the mechanism behind its step-2 and step-3 numbers.
+
+The contrast worth putting next to it: scSAGA has boxes 1-6 as well (its `H` is our `z`), but its box 7 does
+not exist. It has to add a separate transfer rule — k=20 neighbours, `exp(-distance)` weights, average of
+real profiles — to get from the embedding to expression. MultiVI's decoder closes that loop by construction.
 
 The two methods reach the same artifact by completely different routes, and that difference is the whole
 step-2 story.
