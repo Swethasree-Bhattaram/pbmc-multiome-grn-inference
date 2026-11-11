@@ -145,6 +145,50 @@ Two conventions worth stating out loud on the slide, because they are what usual
 The two methods reach the same artifact by completely different routes, and that difference is the whole
 step-2 story.
 
+```
+STEP 1                    STEP 2                              SHARED ARTIFACT
+
+┌────────────────┐  z   ┌──────────────────────────┐
+│ MultiVI        │ NxL  │ RNA decoder on ATAC rows │──┐
+│ raw RNA + ATAC │─────▶│ px_scale -> log1p(1e4*.) │  │
+└────────────────┘      └──────────────────────────┘  │
+                                                       ├──▶ ┌──────────────────────────────────┐
+┌────────────────┐  H   ┌──────────────────────────┐  │    │ imputed_expression_genes_x_atac  │
+│ scSAGA         │ Nxd  │ kNN in H: k=20, exp(-d)  │──┘    │ .npy        G x n_atac           │
+│ PCA_50 only    │─────▶│ avg of real RNA profiles │       └────────────────┬─────────────────┘
+└────────────────┘      └──────────────────────────┘                        │
+                                                                            ▼
+                                              ┌──────────────────────────────────────────────┐
+                                              │ stack:  [ measured RNA rows │ imputed ATAC ] │
+                                              │ all_cells_gene_expression.npy      C x G     │
+                                              │ mask.npy  = which rows are measured          │
+                                              └───────────────────────┬──────────────────────┘
+                                                                      │ C x 36,601 dense
+                                                                      ▼
+                                              ┌──────────────────────────────────────────────┐
+                                              │ GRNBoost2 (arboreto)                         │
+                                              │ regulators: data/tf_only.txt                 │
+                                              │ -> network.tsv   TF, target, importance      │
+                                              └──────────────────────────────────────────────┘
+```
+
+Box by box, for the legend:
+
+| box | consumes | emits | file |
+|---|---|---|---|
+| MultiVI | raw RNA + ATAC counts, paired rows collapsed | `z`, `N x L` | `integration/joint_embedding_H.npy` |
+| scSAGA | `pca_50.txt` per dataset, counts never read | `H`, `N x d` | `integration/joint_embedding_H.npy` |
+| RNA decoder row | `z` of the ATAC rows | `px_scale` → `log1p(1e4·px_scale)` | — |
+| kNN row | `H` + the anchor's real RNA | weighted average of measured profiles | — |
+| shared artifact | either of the two rows above | `G x n_atac` | `pipeline/imputed_expression_genes_x_atac.npy` |
+| stack | measured RNA rows + the imputed block | `C x G`, `C = n_rna + n_atac` | `pipeline/all_cells_gene_expression.npy` |
+| GRNBoost2 | `C x G` + `tf_only.txt` | ranked edges | `pipeline/grn/network.tsv` |
+
+Three things deliberately **absent** from the Arboreto box, worth saying out loud because audiences assume
+otherwise: the ATAC matrix (never reaches the network step), `z`/`H` (the embedding is not a network input,
+only a means to the imputation), and any cell-type label (the network is unsupervised — labels only enter
+later, in the evaluation).
+
 **MultiVI** — the imputed matrix is box 7's output, not `z`:
 
 ```
