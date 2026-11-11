@@ -13,7 +13,74 @@ Speaker notes only — one line per bullet is the whole slide. Numbers are the m
 - Cost is `5hG + 3hP` parameters — **58.4 M** here, 0.94 GB with Adam.
 - **There is no `N x N` object anywhere in the model.** That single fact decides everything on slide 2.
 
-*Figure:* the six boxes left-to-right, with the `B x L` tensor labelled on every arrow.
+*Figure:* the nine boxes below, left to right, with the tensor on every arrow.
+
+### Slide 1 boxes
+
+Nine boxes in four stages. Two parallel columns on the left (RNA top, ATAC bottom), one trunk in the
+middle, two parallel columns on the right, loss underneath.
+
+```
+        RNA                                        ATAC
+  ┌───────────────┐                          ┌────────────────┐
+  │ 1 RNA counts  │ N x G sparse             │ 2 ATAC counts  │ N x P sparse
+  └───────┬───────┘                          └───────┬────────┘
+          │ x_r  B x G                               │ x_a  B x P
+  ┌───────▼───────┐                          ┌───────▼────────┐
+  │ 3 RNA encoder │ G -> h -> h              │ 4 ATAC encoder │ P -> h -> h
+  └───────┬───────┘                          └───────┬────────┘
+          │ mu_r, sigma_r  B x L                     │ mu_a, sigma_a  B x L
+          │            ╲        (Jeffreys)  ╱        │
+          │             ╲   only on paired ╱         │
+          │              ▼                 ▼         │
+          │        ┌──────────────────────────┐      │
+          └───────▶│ 5 Posterior fusion       │◀─────┘
+                   │   precision-weighted avg │   + per-cell weights w
+                   └────────────┬─────────────┘
+                                │ mu, sigma  B x L
+                   ┌────────────▼─────────────┐
+                   │ 6 Sample z               │
+                   │   z = mu + sigma * eps   │
+                   └────────────┬─────────────┘
+                                │ z  B x L        --> also the integration output, N x L
+              ┌─────────────────┴──────────────────┐
+     ┌────────▼────────┐                  ┌────────▼────────┐
+     │ 7 RNA decoder   │ h -> 3 heads     │ 8 ATAC decoder  │ h -> Bernoulli
+     └────────┬────────┘                  └────────┬────────┘
+              │ px_scale  B x G                    │ p  B x P
+     ┌────────▼────────────────────────────────────▼────────┐
+     │ 9 Loss    RNA NB recon + ATAC BCE recon + KL + Jeffreys│
+     └──────────────────────────────────────────────────────┘
+```
+
+| # | box label (write this) | second line inside the box | what enters |
+|---|---|---|---|
+| 1 | RNA counts | N x G sparse, 36,601 genes | — |
+| 2 | ATAC counts | N x P sparse, 89,796 peaks | — |
+| 3 | RNA encoder | G->h->h, mu_r / sigma_r : B x L | x_r |
+| 4 | ATAC encoder | P->h->h, mu_a / sigma_a : B x L | x_a |
+| 5 | Posterior fusion | precision-weighted mean, mu / sigma : B x L | mu_r, sigma_r, mu_a, sigma_a, w |
+| 6 | Sample z | z = mu + sigma * eps, B x L | mu, sigma |
+| 7 | RNA decoder | h->G, three heads (mean, dispersion, dropout) | z |
+| 8 | ATAC decoder | h->P, Bernoulli probability | z |
+| 9 | Loss | recon RNA + recon ATAC + KL + Jeffreys | px_scale, p, mu, sigma |
+
+Three dashed callouts, not boxes:
+
+- **masks** — from boxes 1 and 2 straight to box 9, labelled `m = (rowsum > 0)`: a cell with no counts in
+  a modality contributes no reconstruction error there.
+- **Jeffreys** — a double arrow between boxes 3 and 4, labelled *paired cells only*. If you draw one
+  thing on this slide, draw this: it is the only term that ties the two modalities together.
+- **w** — into box 5, labelled `equal | universal | per-cell`.
+
+Two outputs, drawn as plain arrows off the diagram, not boxes:
+
+- `z` off box 6 → the joint embedding, `N x L`, what the integration metrics score.
+- `px_scale` off box 7 → the imputed expression matrix, `n_atac x G`, what feeds GRNBoost2.
+
+If nine boxes is too many for one slide, collapse to six: `RNA counts | ATAC counts` → `Encoders` (boxes
+3+4) → `Posterior fusion` → `Sample z` → `Decoders` (boxes 7+8) → `Loss`. The Jeffreys callout must
+survive the collapse; it is the one thing a reader cannot guess.
 
 ---
 
