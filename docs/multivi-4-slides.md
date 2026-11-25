@@ -127,7 +127,7 @@ If the symbols go on the slide, they go in this table, not scattered in the boxe
 |---|---|---|
 | `px_scale` | `B x G` | decoded normalised mean expression. **This is the imputed matrix** (`n_atac x G`) that feeds GRNBoost2. |
 | `theta` | `G` | per-gene dispersion: how over-dispersed that gene's counts are |
-| `pi` | `B x G` | per-entry dropout logit; allocated even under an NB likelihood, so it is 1/5 of the RNA parameter cost |
+| `pi` | `B x G` | per-entry dropout logit (ZINB is the default likelihood, so this head is used); 1/5 of the RNA parameter cost |
 | `p` | `B x P` | per-peak probability of being accessible, `0..1` |
 | `region_factors` | `P` | per-peak scaling, absorbing how accessible a peak is overall |
 | `beta` | scalar, 1.0 | weight on the KL term |
@@ -312,7 +312,7 @@ marginals of those rows far more than on the quality of the latent.
 - Peaks and genes are not symmetric: ATAC costs `3hP` (34.6 M at 89,796 peaks), RNA costs `5hG`
   (23.6 M at 36,601 genes) — the peak axis is 2.5x wider but only 1.5x the parameters, because RNA
   pays for three decoder heads.
-- `n_hidden` defaults to `sqrt(n_regions)` — leave it unset at 250k peaks and the model is 3.9x bigger.
+- `n_hidden` defaults to `min(128, sqrt(n_features))`, so it is 128 in practice; it only shrinks on tiny inputs.
 - **No published MultiVI result exceeds 89,655 cells.** The ">1 M" claim is the scvi-tools doc page.
 
 ### Slide 2 — the red box

@@ -111,9 +111,10 @@ z  B x L -> FC(L->h) -> ReLU -> FC(h->h) -> ReLU        B x h
               * region_factors (P)  * library size l_a
 ```
 
-The RNA decoder allocates **three** `h x G` matrices (mean, dispersion, dropout) even when the
-likelihood is plain NB, so the dropout head is paid for but unused. That is why the RNA decoder is
-14.19 M params against the ATAC decoder's 11.60 M at the same width.
+The RNA decoder allocates **three** `h x G` matrices: normalised mean, dispersion, and dropout logits.
+All three are used, because `gene_likelihood` defaults to `"zinb"` in scvi-tools 1.4.2 (not `"nb"`).
+That is why the RNA decoder is 14.19 M params against the ATAC decoder's 11.60 M at the same width. If you
+switch to `"nb"` the dropout head is still allocated and becomes a 4.7 M-parameter no-op.
 
 ### Step 5 — loss
 
@@ -159,7 +160,7 @@ params  =  5*h*G  +  3*h*P
 
 Measured, module by module (scvi-tools 1.4.2, `n_layers_encoder = n_layers_decoder = 2`):
 
-| module | repo config (P=89,796) | atlas (P=250,000, h=128) | atlas (P=250,000, h=500 default) |
+| module | repo config (P=89,796) | atlas (P=250,000, h=128) | atlas (P=250,000, h=500 set explicitly) |
 |---|---|---|---|
 | `z_encoder_expression` | 4,709,308 | 4,709,308 | 18,581,560 |
 | `l_encoder_expression` | 4,701,697 | 4,701,697 | 18,552,001 |
@@ -176,9 +177,10 @@ Two things this makes obvious:
 
 1. **The peak axis is the cost driver.** `P` enters three times, `G` five times, and `P` is the larger
    number in any atlas-scale dataset. Halving peaks halves two thirds of the model.
-2. **`n_hidden` defaults to `sqrt(n_regions)`.** Leave it unset at 250k peaks and the model is 3.9x
-   bigger than `n_hidden=128` (469.8 M vs 120.3 M params). Set `n_hidden` explicitly. The repo already
-   does (`--n-hidden 128`).
+2. **`n_hidden` defaults to `min(128, sqrt(n_features))`** (`_multivae.py:313-319`), so it is 128 for any
+   realistic feature count — it does not grow with the peak axis. It shrinks only on small inputs (400 peaks
+   -> 20). The 469.8 M row above is what you get if you *set* `h=500`, not if you leave it unset; the repo
+   passes `--n-hidden 128` anyway.
 
 None of these are large numbers. 58 M params is a small model by 2026 standards; the memory story at
 1M cells is the data, not the weights.
